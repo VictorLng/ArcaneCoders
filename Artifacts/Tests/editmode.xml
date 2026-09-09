@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="20" result="Passed" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.3924533">
+  <test-suite type="TestSuite" id="1000" name="Arcane Code" fullname="Arcane Code" runstate="Runnable" testcasecount="20" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.392453" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="1024" name="ArcaneCode.Tests.dll" fullname="/home/zummit/Projetos/myProjects/arcane-code/.validation/Library/ScriptAssemblies/ArcaneCode.Tests.dll" runstate="Runnable" testcasecount="20" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.379904" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="35321" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="1025" name="ArcaneCode" fullname="ArcaneCode" runstate="Runnable" testcasecount="20" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.379227" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1026" name="Tests" fullname="ArcaneCode.Tests" runstate="Runnable" testcasecount="20" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.378956" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestFixture" id="1001" name="CoreTests" fullname="ArcaneCode.Tests.CoreTests" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" testcasecount="20" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.377640" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-case id="1023" name="BankingIsIdempotentAndDoesNotPersistRunBonuses" fullname="ArcaneCode.Tests.CoreTests.BankingIsIdempotentAndDoesNotPersistRunBonuses" methodname="BankingIsIdempotentAndDoesNotPersistRunBonuses" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="616398810" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.027501" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-suite type="ParameterizedMethod" id="1004" name="BothClassesStartWithWorkingPrograms" fullname="ArcaneCode.Tests.CoreTests.BothClassesStartWithWorkingPrograms" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.020474" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1002" name="BothClassesStartWithWorkingPrograms(&quot;MagoDeFogo&quot;,&quot;fireball&quot;)" fullname="ArcaneCode.Tests.CoreTests.BothClassesStartWithWorkingPrograms(&quot;MagoDeFogo&quot;,&quot;fireball&quot;)" methodname="BothClassesStartWithWorkingPrograms" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="1853405625" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.016839" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1003" name="BothClassesStartWithWorkingPrograms(&quot;MagoDeGelo&quot;,&quot;icebolt&quot;)" fullname="ArcaneCode.Tests.CoreTests.BothClassesStartWithWorkingPrograms(&quot;MagoDeGelo&quot;,&quot;icebolt&quot;)" methodname="BothClassesStartWithWorkingPrograms" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="785294468" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.000393" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-case id="1017" name="BudgetIsCheckedBeforeActivation" fullname="ArcaneCode.Tests.CoreTests.BudgetIsCheckedBeforeActivation" methodname="BudgetIsCheckedBeforeActivation" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="432788501" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.002850" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1005" name="ChargeTakesCombatTimeAndCastConsumesIt" fullname="ArcaneCode.Tests.CoreTests.ChargeTakesCombatTimeAndCastConsumesIt" methodname="ChargeTakesCombatTimeAndCastConsumesIt" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="1168563227" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.002699" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1014" name="DiagnosticsHaveLineAndColumn" fullname="ArcaneCode.Tests.CoreTests.DiagnosticsHaveLineAndColumn" methodname="DiagnosticsHaveLineAndColumn" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="709240478" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.000381" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1022" name="DungeonGuaranteesAcrossOneThousandSeeds" fullname="ArcaneCode.Tests.CoreTests.DungeonGuaranteesAcrossOneThousandSeeds" methodname="DungeonGuaranteesAcrossOneThousandSeeds" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="1728807298" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.237203" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1021" name="ExecutionLimitsBoundExpensivePrograms" fullname="ArcaneCode.Tests.CoreTests.ExecutionLimitsBoundExpensivePrograms" methodname="ExecutionLimitsBoundExpensivePrograms" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="532252647" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.002891" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1016" name="ExpandedHelpersRespectNestedLoopLimit" fullname="ArcaneCode.Tests.CoreTests.ExpandedHelpersRespectNestedLoopLimit" methodname="ExpandedHelpersRespectNestedLoopLimit" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="1505722386" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.001937" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1015" name="HelpersCannotHideCostOrRecursion" fullname="ArcaneCode.Tests.CoreTests.HelpersCannotHideCostOrRecursion" methodname="HelpersCannotHideCostOrRecursion" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="189411826" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.000727" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1020" name="IntegerArithmeticAndBooleanShortCircuitWork" fullname="ArcaneCode.Tests.CoreTests.IntegerArithmeticAndBooleanShortCircuitWork" methodname="IntegerArithmeticAndBooleanShortCircuitWork" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="796979693" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.001146" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-suite type="ParameterizedMethod" id="1013" name="InvalidProgramsAreRejected" fullname="ArcaneCode.Tests.CoreTests.InvalidProgramsAreRejected" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.050602" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1006" name="InvalidProgramsAreRejected(&quot;int x = true;&quot;,&quot;atribuir&quot;)" fullname="ArcaneCode.Tests.CoreTests.InvalidProgramsAreRejected(&quot;int x = true;&quot;,&quot;atribuir&quot;)" methodname="InvalidProgramsAreRejected" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="1807691323" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.045293" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1007" name="InvalidProgramsAreRejected(&quot;if (3) { this.fireball().cast(); }&quot;,&quot;bool&quot;)" fullname="ArcaneCode.Tests.CoreTests.InvalidProgramsAreRejected(&quot;if (3) { this.fireball().cast(); }&quot;,&quot;bool&quot;)" methodname="InvalidProgramsAreRejected" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="1638212865" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.000403" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1008" name="InvalidProgramsAreRejected(&quot;this.frostNova().cast();&quot;,&quot;desbloqueada&quot;)" fullname="ArcaneCode.Tests.CoreTests.InvalidProgramsAreRejected(&quot;this.frostNova().cast();&quot;,&quot;desbloqueada&quot;)" methodname="InvalidProgramsAreRejected" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="1849413871" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.000699" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1009" name="InvalidProgramsAreRejected(&quot;for (int i=0;i&lt;11;i++) { this.charge(1); }&quot;,&quot;1 a 10&quot;)" fullname="ArcaneCode.Tests.CoreTests.InvalidProgramsAreRejected(&quot;for (int i=0;i&lt;11;i++) { this.charge(1); }&quot;,&quot;1 a 10&quot;)" methodname="InvalidProgramsAreRejected" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="1486419222" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.000359" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1010" name="InvalidProgramsAreRejected(&quot;for (int i=0;i&lt;2;i++) { for (int j=0;j&lt;2;j++) { for (int k=0;k&lt;2;k++) { this.charge(1); } } }&quot;,&quot;dois loops&quot;)" fullname="ArcaneCode.Tests.CoreTests.InvalidProgramsAreRejected(&quot;for (int i=0;i&lt;2;i++) { for (int j=0;j&lt;2;j++) { for (int k=0;k&lt;2;k++) { this.charge(1); } } }&quot;,&quot;dois loops&quot;)" methodname="InvalidProgramsAreRejected" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="186961335" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.000466" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1011" name="InvalidProgramsAreRejected(&quot;this.charge(true);&quot;,&quot;inteiro&quot;)" fullname="ArcaneCode.Tests.CoreTests.InvalidProgramsAreRejected(&quot;this.charge(true);&quot;,&quot;inteiro&quot;)" methodname="InvalidProgramsAreRejected" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="98812421" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.000219" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1012" name="InvalidProgramsAreRejected(&quot;this.energia = 10;&quot;,&quot;Esperado&quot;)" fullname="ArcaneCode.Tests.CoreTests.InvalidProgramsAreRejected(&quot;this.energia = 10;&quot;,&quot;Esperado&quot;)" methodname="InvalidProgramsAreRejected" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="2108745312" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.000222" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-case id="1019" name="RuntimeErrorsStopTheProgramWithoutThrowing" fullname="ArcaneCode.Tests.CoreTests.RuntimeErrorsStopTheProgramWithoutThrowing" methodname="RuntimeErrorsStopTheProgramWithoutThrowing" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="2131328296" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.002290" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1018" name="ZeroDeltaDoesNotAccumulateEnergy" fullname="ArcaneCode.Tests.CoreTests.ZeroDeltaDoesNotAccumulateEnergy" methodname="ZeroDeltaDoesNotAccumulateEnergy" classname="ArcaneCode.Tests.CoreTests" runstate="Runnable" seed="947131182" result="Passed" start-time="2026-09-07 12:32:49Z" end-time="2026-09-07 12:32:49Z" duration="0.000630" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+              <output><![CDATA[Saving results to: /home/zummit/.config/unity3d/ArcaneWorkshop/Arcane Code/TestResults.xml
+]]></output>
+            </test-case>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

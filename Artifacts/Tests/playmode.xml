@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="3" result="Passed" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-07 12:34:15Z" end-time="2026-09-07 12:34:16Z" duration="0.7827114">
+  <test-suite type="TestSuite" id="1011" name="Arcane Code" fullname="Arcane Code" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-07 12:34:15Z" end-time="2026-09-07 12:34:16Z" duration="0.782711" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1016" name="ArcaneCode.PlayTests.dll" fullname="/home/zummit/Projetos/myProjects/arcane-code/.validation/Library/ScriptAssemblies/ArcaneCode.PlayTests.dll" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-07 12:34:15Z" end-time="2026-09-07 12:34:16Z" duration="0.769717" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="36982" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1017" name="ArcaneCode" fullname="ArcaneCode" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-07 12:34:15Z" end-time="2026-09-07 12:34:16Z" duration="0.760311" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1018" name="Tests" fullname="ArcaneCode.Tests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-07 12:34:15Z" end-time="2026-09-07 12:34:16Z" duration="0.743554" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestFixture" id="1012" name="GameTests" fullname="ArcaneCode.Tests.GameTests" classname="ArcaneCode.Tests.GameTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-07 12:34:15Z" end-time="2026-09-07 12:34:16Z" duration="0.725136" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-case id="1013" name="BothClassesTraverseRoomsAndReturnToBase" fullname="ArcaneCode.Tests.GameTests.BothClassesTraverseRoomsAndReturnToBase" methodname="BothClassesTraverseRoomsAndReturnToBase" classname="ArcaneCode.Tests.GameTests" runstate="Runnable" seed="899409044" result="Passed" start-time="2026-09-07 12:34:15Z" end-time="2026-09-07 12:34:15Z" duration="0.326732" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1014" name="InvalidDraftPreservesProgramAndPauseFreezesWorld" fullname="ArcaneCode.Tests.GameTests.InvalidDraftPreservesProgramAndPauseFreezesWorld" methodname="InvalidDraftPreservesProgramAndPauseFreezesWorld" classname="ArcaneCode.Tests.GameTests" runstate="Runnable" seed="845009101" result="Passed" start-time="2026-09-07 12:34:15Z" end-time="2026-09-07 12:34:15Z" duration="0.246590" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1015" name="PermanentPurchasesPersistAndNewRunCanCastImmediately" fullname="ArcaneCode.Tests.GameTests.PermanentPurchasesPersistAndNewRunCanCastImmediately" methodname="PermanentPurchasesPersistAndNewRunCanCastImmediately" classname="ArcaneCode.Tests.GameTests" runstate="Runnable" seed="172430696" result="Passed" start-time="2026-09-07 12:34:15Z" end-time="2026-09-07 12:34:16Z" duration="0.130181" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+              <output><![CDATA[Saving results to: /home/zummit/.config/unity3d/ArcaneWorkshop/Arcane Code/TestResults.xml
+]]></output>
+            </test-case>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

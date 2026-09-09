@@ -1,0 +1,1 @@
+{"name":"ArcaneCode.Tests","references":["ArcaneCode.Core","ArcaneCode.Runtime"],"includePlatforms":["Editor"],"optionalUnityReferences":["TestAssemblies"]}
