@@ -97,3 +97,4 @@ Assemblies: `ArcaneCode.Core` não depende de Unity; `ArcaneCode.Runtime` conté
 
 Arte original provisória gerada por código. As fontes DejaVu acompanham sua licença em `Assets/Resources/DejaVu-LICENSE.txt` e nos builds. Esta versão não inclui áudio, multiplayer, outros elementos ou arte final.
 # ArcaneCoders
+# ArcaneCoders
