@@ -1,0 +1,93 @@
+{
+  "generated_at": "2026-09-11T11:52:41-03:00",
+  "project_root": "/mnt/c/users/windows ssd/projetos/arcane-code",
+  "languages": [
+    {
+      "name": "C#",
+      "extensions": [".cs"],
+      "file_count": 11
+    },
+    {
+      "name": "Unity YAML assets",
+      "extensions": [".asset", ".unity", ".asmdef"],
+      "file_count": 42
+    },
+    {
+      "name": "JSON",
+      "extensions": [".json", ".inputactions"],
+      "file_count": 4
+    }
+  ],
+  "primary_language": "C#",
+  "frameworks": [
+    {
+      "name": "Unity",
+      "version": "6000.6.0f1",
+      "source": "ProjectSettings/ProjectVersion.txt"
+    },
+    {
+      "name": "Universal Render Pipeline",
+      "version": "17.6.0",
+      "source": "Packages/manifest.json"
+    },
+    {
+      "name": "Unity Input System",
+      "version": "1.19.0",
+      "source": "Packages/manifest.json"
+    },
+    {
+      "name": "Unity Test Framework",
+      "version": "1.8.0",
+      "source": "Packages/manifest.json"
+    }
+  ],
+  "package_manager": "Unity Package Manager",
+  "entry_points": [
+    {
+      "path": "Assets/Scenes/ArcaneCode.unity",
+      "type": "main_scene"
+    },
+    {
+      "path": "Assets/ArcaneCode/Runtime/ArcaneGame.cs",
+      "type": "runtime_initializer"
+    },
+    {
+      "path": "Assets/ArcaneCode/Editor/ArcaneBuild.cs",
+      "type": "editor_build_entry"
+    }
+  ],
+  "config_files": [
+    "Packages/manifest.json",
+    "Packages/packages-lock.json",
+    "ProjectSettings/ProjectVersion.txt",
+    "Assets/Resources/GameConfig.asset"
+  ],
+  "database_hints": [
+    {
+      "path": "profile.json",
+      "type": "local_json_save"
+    }
+  ],
+  "test_framework": "Unity Test Framework",
+  "test_file_count": 2,
+  "modules": [
+    "spell-language-and-machine",
+    "dungeon-and-progression",
+    "gameplay-and-combat",
+    "user-interface-and-persistence",
+    "editor-build-tooling"
+  ],
+  "total_files": 114,
+  "organization_suggestion": {
+    "granularity": "feature",
+    "rationale": "O código é organizado em camadas técnicas Unity, enquanto as capacidades de domínio identificáveis são linguagem de feitiços, dungeon/progressão, combate, interface/persistência e build.",
+    "signals": [],
+    "features": [
+      "spell-language-and-machine",
+      "dungeon-and-progression",
+      "gameplay-and-combat",
+      "user-interface-and-persistence",
+      "editor-build-tooling"
+    ]
+  }
+}
