@@ -23,7 +23,7 @@ namespace ArcaneCode.Core
         public static Dungeon Generate(int seed)
         {
             var random = new Random(seed);
-            // A connected tree avoids accidental adjacent doors and guarantees a leaf boss.
+
             for (int attempt = 0; attempt < 100; attempt++)
             {
                 var dungeon = new Dungeon { Seed = seed };
