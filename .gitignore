@@ -12,3 +12,7 @@
 TestResults*.xml
 *.log
 .validation/
+
+# Local environment values. Keep .env.example tracked as the safe template.
+.env
+.env.local

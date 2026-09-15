@@ -70,9 +70,14 @@ namespace ArcaneCode.Core
     [Serializable]
     public sealed class Profile
     {
-        public int Version = 1, Coins, HealthRank, EnergyRank, BudgetRank;
+        public const int CurrentVersion = 2;
+        public int Version = CurrentVersion, Coins, HealthRank, EnergyRank, BudgetRank;
         public bool FireUnlocked, IceUnlocked, SpeedCastUnlocked;
+        // Legacy per-class sources remain so version 1 profiles can be migrated safely.
         public string FireCode = "", IceCode = "", FireDraft = "", IceDraft = "";
+        public string MageCode = "", MageDraft = "";
+        public StaffInstance EquippedStaff = new StaffInstance();
+        public GrimoireInstance EquippedGrimoire;
         public int Runs, Wins;
         public string LastBankedRun = "";
         public bool Bank(string runId, int coins, bool won)

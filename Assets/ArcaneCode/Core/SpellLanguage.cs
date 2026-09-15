@@ -69,20 +69,30 @@ namespace ArcaneCode.Core
 
     public static class SpellCompiler
     {
+        public const string EntryMethod = "constructor";
         public static readonly Dictionary<string, string> SpellTypes = new Dictionary<string, string>
         { { "fireball", "Fireball" }, { "flameWave", "FlameWave" }, { "icebolt", "Icebolt" }, { "frostNova", "FrostNova" } };
 
         public static string Starter(string className)
         {
-            bool fire = className == "MagoDeFogo";
-            return "class " + className + " extends Mago {\n    void attackOne() {\n        " + (fire ? "Fireball bola = this.fireball();" : "Icebolt bola = this.icebolt();") + "\n        bola.cast();\n    }\n}";
+            return Starter(className, className == "MagoDeFogo" ? "fireball" : "icebolt");
+        }
+
+        public static string Starter(string className, string spellId)
+        {
+            if (!SpellTypes.TryGetValue(spellId, out string type)) throw new ArgumentException("Magia inicial desconhecida: " + spellId);
+            return "class " + className + " extends Mago {\n    void " + EntryMethod + "() {\n        " + type + " bola = this." + spellId + "();\n        bola.cast();\n    }\n}";
         }
 
         public static string Charged(string className)
         {
-            string type = className == "MagoDeFogo" ? "Fireball" : "Icebolt";
-            string method = className == "MagoDeFogo" ? "fireball" : "icebolt";
-            return "class " + className + " extends Mago {\n    void attackOne() {\n        for (int i = 0; i < 3; i++) {\n            this.charge(1);\n        }\n        if (this.energia >= 3) {\n            " + type + " bola = this." + method + "();\n            bola.cast();\n        }\n    }\n}";
+            return Charged(className, className == "MagoDeFogo" ? "fireball" : "icebolt");
+        }
+
+        public static string Charged(string className, string spellId)
+        {
+            if (!SpellTypes.TryGetValue(spellId, out string type)) throw new ArgumentException("Magia inicial desconhecida: " + spellId);
+            return "class " + className + " extends Mago {\n    void " + EntryMethod + "() {\n        for (int i = 0; i < 3; i++) {\n            this.charge(1);\n        }\n        if (this.energia >= 3) {\n            " + type + " bola = this." + spellId + "();\n            bola.cast();\n        }\n    }\n}";
         }
 
         public static CompileResult Compile(string source, CompileOptions options)
@@ -96,9 +106,9 @@ namespace ArcaneCode.Core
                 var methods = parser.Parse(options.ClassName);
                 var checker = new Checker(methods, options);
                 checker.Validate();
-                result.Cost = checker.MethodCost("attackOne", new HashSet<string>(), 0);
+                result.Cost = checker.MethodCost(EntryMethod, new HashSet<string>(), 0);
                 // Unused helpers still occupy equipment; used helpers are expanded at every call site.
-                foreach (string name in methods.Keys.Where(n => n != "attackOne" && !checker.Reachable.Contains(n)))
+                foreach (string name in methods.Keys.Where(n => n != EntryMethod && !checker.Reachable.Contains(n)))
                     result.Cost += checker.MethodCost(name, new HashSet<string>(), 0);
                 if (result.Cost > options.Budget)
                     throw new LanguageError(new Token("", 1, 1), $"Complexidade {result.Cost}/{options.Budget}. Simplifique o código ou obtenha mais pontos.");
@@ -180,7 +190,10 @@ namespace ArcaneCode.Core
                     if (methods.Count > 16) throw new LanguageError(name, "Máximo de 16 métodos.");
                 }
                 Expect("}"); Expect("<fim>");
-                if (!methods.ContainsKey("attackOne")) throw new LanguageError(cls, "Declare void attackOne() para iniciar os ataques.");
+                if (!methods.TryGetValue(EntryMethod, out Statement entry))
+                    throw new LanguageError(cls, "Declare void constructor() para definir o job do mago.");
+                if (entry.Type != "void")
+                    throw new LanguageError(entry.Token, "constructor() deve retornar void.");
                 return methods;
             }
             Statement Block()
@@ -344,7 +357,7 @@ namespace ArcaneCode.Core
                 {
                     Require(s.Value.Kind == "call", s.Token, "Use uma chamada de método como instrução.");
                     Require(type == "void", s.Token, "Use o valor retornado por " + s.Value.Name + " em uma variável, cast() ou return.");
-                    Require(returnType == "void", s.Token, "Métodos com retorno só podem calcular e retornar um valor; lance a magia em attackOne().");
+                    Require(returnType == "void", s.Token, "Métodos com retorno só podem calcular e retornar um valor; lance a magia em constructor().");
                     return false;
                 }
             }

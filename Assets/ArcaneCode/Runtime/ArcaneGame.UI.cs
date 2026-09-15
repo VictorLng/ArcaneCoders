@@ -84,18 +84,21 @@ namespace ArcaneCode
         void HubUI()
         {
             Box(new Rect(0,0,1280,800),Background);
-            Header("O SANTUÁRIO  /  GRIMÓRIO 01","ARCANE CODE","Escreva seus feitiços. Sobreviva às consequências.");
+            Header("O SANTUÁRIO  /  EQUIPAMENTO 01","ARCANE CODERS","O mago é você. A staff e o grimório definem sua magia.");
             Label(new Rect(977,40,250,30),"◈  "+profile.Coins+" fragmentos",18,Accent,true);
             Label(new Rect(977,75,250,24),profile.Runs+" tentativas · "+profile.Wins+" vitórias",13,Muted);
-            ClassCard(new Rect(52,195,350,215),"MagoDeFogo","01  /  PIROMANTE","Fogo que persiste.\nProjéteis + queimadura.",new Color(1,.57f,.29f));
-            ClassCard(new Rect(424,195,350,215),"MagoDeGelo","02  /  CRIOMANTE","Controle o ritmo da luta.\nLentidão + congelamento.",new Color(.35f,.82f,1));
+            StaffCard(new Rect(52,195,350,215),"staff-fire","01  /  STAFF DE FOGO","Fogo que persiste.\nProjéteis + queimadura.",new Color(1,.57f,.29f));
+            StaffCard(new Rect(424,195,350,215),"staff-ice","02  /  STAFF DE GELO","Controle o ritmo da luta.\nLentidão + congelamento.",new Color(.35f,.82f,1));
             Box(new Rect(52,434,722,256),PanelColor);
-            Label(new Rect(75,453,650,26),"O MAGO JÁ SABE LUTAR. VOCÊ O ENSINA A PENSAR.",14,Accent,true);
-            Label(new Rect(75,493,650,82),"WASD / setas para mover. Ataques e mira são automáticos.\nColete experiência, escolha melhorias e reescreva sua classe.\nNas salas seguras, TAB abre o editor de feitiços.",17);
-            Label(new Rect(75,589,180,25),"Semente opcional",13,Muted);
-            seedText=GUI.TextField(new Rect(75,618,188,38),seedText,11);
-            if (Button(new Rect(285,612,215,48),"Abrir grimório")) OpenEditor(ScreenMode.Hub);
-            if (Button(new Rect(520,612,228,48),"Entrar na dungeon →",true)) StartFromHub();
+            Label(new Rect(75,453,650,26),"O MAGO APRENDE CÓDIGO. O EQUIPAMENTO DEFINE OS ELEMENTOS.",14,Accent,true);
+            Label(new Rect(75,487,650,42),"Equipe um grimório para combinar seu elemento com o da staff.\nNas salas seguras, Q troca a staff e TAB abre o editor.",16);
+            GrimoireButton(new Rect(75,545,170,38),null,"Sem grimório");
+            GrimoireButton(new Rect(258,545,190,38),"grimoire-fire","Grimório de fogo");
+            GrimoireButton(new Rect(461,545,190,38),"grimoire-ice","Grimório de gelo");
+            Label(new Rect(75,599,180,20),"Semente opcional",13,Muted);
+            seedText=GUI.TextField(new Rect(75,622,188,34),seedText,11);
+            if (Button(new Rect(285,615,215,43),"Abrir grimório")) OpenEditor(ScreenMode.Hub);
+            if (Button(new Rect(520,615,228,43),"Entrar na dungeon →",true)) StartFromHub();
             Box(new Rect(803,195,425,495),PanelColor);
             Label(new Rect(826,215,380,26),"LEGADO PERMANENTE",15,Accent,true);
             UpgradeRow(263,"health","Vitalidade","+15 de vida inicial",profile.HealthRank);
@@ -107,14 +110,19 @@ namespace ArcaneCode
             Label(new Rect(52,708,1100,25),"PROTÓTIPO 0.1     /     FOGO + GELO     /     UMA DUNGEON, INFINITAS REVISÕES",12,Muted);
             if (Button(new Rect(1090,701,138,35),"Sair")) Application.Quit();
         }
-        void ClassCard(Rect rect,string id,string label,string description,Color color)
+        void StaffCard(Rect rect,string id,string label,string description,Color color)
         {
-            bool selected=selectedClass==id; Box(rect,PanelColor); Box(new Rect(rect.x,rect.y,rect.width,3),selected?color:new Color(.2f,.24f,.33f));
+            bool selected=loadout.Staff.DefinitionId==id; Box(rect,PanelColor); Box(new Rect(rect.x,rect.y,rect.width,3),selected?color:new Color(.2f,.24f,.33f));
             Label(new Rect(rect.x+20,rect.y+20,rect.width-40,25),label,14,color,true);
-            Label(new Rect(rect.x+20,rect.y+60,rect.width-40,26),id,23,White,true);
+            Label(new Rect(rect.x+20,rect.y+60,rect.width-40,26),selected?"EQUIPADA":"DISPONÍVEL",23,White,true);
             Label(new Rect(rect.x+20,rect.y+101,rect.width-40,58),description,16,Muted);
-            if (Button(new Rect(rect.x+20,rect.y+163,rect.width-40,35),selected?"Classe selecionada":"Escolher classe",selected))
-            { SaveDraft(); selectedClass=id; draft=null; PrepareHub(); }
+            if (Button(new Rect(rect.x+20,rect.y+163,rect.width-40,35),selected?"Staff equipada":"Equipar staff",selected))
+            { SaveDraft(); EquipStaffDuringRun(new StaffInstance { DefinitionId=id,Level=1 }); draft=null; PrepareHub(); }
+        }
+        void GrimoireButton(Rect rect,string id,string label)
+        {
+            bool selected=(loadout.Grimoire?.DefinitionId??string.Empty)==(id??string.Empty);
+            if (Button(rect,selected?label+" ✓":label,selected)) EquipGrimoire(id==null?null:new GrimoireInstance { DefinitionId=id,Level=1 });
         }
         void UpgradeRow(float y,string id,string title,string description,int rank,bool magic=false)
         {
@@ -126,7 +134,8 @@ namespace ArcaneCode
         void HUD()
         {
             Box(new Rect(22,20,382,98),Background);
-            Label(new Rect(38,29,350,25),selectedClass+"  /  NV. "+level,18,Accent,true);
+            string staffLabel=MageEquipmentCatalog.TryGetStaff(loadout.Staff.DefinitionId,out StaffDefinition staff)?staff.Label:loadout.Staff.DefinitionId;
+            Label(new Rect(38,29,350,25),"MAGO ARCANO  /  "+staffLabel.ToUpperInvariant()+" NV. "+loadout.Staff.Level+"  /  NV. "+level,16,Accent,true);
             Bar(new Rect(38,65,270,10),hp/MaxHealth,new Color(.89f,.3f,.42f)); Label(new Rect(318,56,80,28),Mathf.CeilToInt(hp)+" / "+MaxHealth,12);
             Bar(new Rect(38,91,350,4),(float)xp/NextXP,new Color(.38f,.92f,.74f));
             Box(new Rect(430,20,385,76),Background);
@@ -136,7 +145,7 @@ namespace ArcaneCode
             if (machine!=null && machine.Charging) Bar(new Rect(446,82,350,3),machine.ChargeProgress,Accent);
             MiniMap();
             Box(new Rect(22,693,720,39),Background);
-            Label(new Rect(37,702,690,25),CurrentRoom.Cleared?"SALA SEGURA   /   TAB: grimório   ·   Atravesse uma porta para explorar":"WASD: mover   /   Ataques automáticos   /   Colete os cristais de experiência",13,Muted);
+            Label(new Rect(37,702,690,25),CurrentRoom.Cleared?"SALA SEGURA   /   Q: trocar staff · R: runa ricochete · TAB: grimório":"WASD: mover   /   Ataques automáticos   /   Colete os cristais de experiência",13,Muted);
             Label(new Rect(22,128,320,24),"◈ "+runCoins+"     TEMPO "+TimeSpan.FromSeconds(elapsed).ToString(@"mm\:ss")+"     XP "+xp+"/"+NextXP,13,White);
             if (machine!=null && machine.Error!=null)
             { Box(new Rect(260,615,760,62),Background); Label(new Rect(278,624,724,52),"Execução interrompida: "+machine.Error+"\nESC → restaurar ataque básico para continuar.",14,new Color(1,.55f,.5f)); }
@@ -188,7 +197,7 @@ namespace ArcaneCode
         { draftResult=SpellCompiler.Compile(draft,Options()); highlightedSource=""; }
         string Highlight(string code)
         {
-            return Regex.Replace(code,@"//[^\n]*|\b(?:class|extends|void|int|float|bool|var|if|else|for|return|this|true|false)\b|\b(?:Fireball|Icebolt|FlameWave|FrostNova|MagoDeFogo|MagoDeGelo|Mago)\b|\b\d+(?:\.\d+)?\b",m=>
+            return Regex.Replace(code,@"//[^\n]*|\b(?:class|extends|void|int|float|bool|var|if|else|for|return|this|true|false)\b|\b(?:Fireball|Icebolt|FlameWave|FrostNova|MagoArcanista|Mago)\b|\b\d+(?:\.\d+)?\b",m=>
             {
                 string value=m.Value;
                 string color=value.StartsWith("//")?"#647B8D":char.IsDigit(value[0])?"#E6B974":char.IsUpper(value[0])?"#7ADFD3":"#C3A0EF";
@@ -202,12 +211,12 @@ namespace ArcaneCode
         void EditorUI()
         {
             Box(new Rect(0,0,1280,800),Background);
-            Label(new Rect(30,22,850,24),"GRIMÓRIO  /  "+selectedClass+"  /  "+(dungeon==null?"CÓDIGO INICIAL":"TENTATIVA ATUAL"),14,Accent,true);
+            Label(new Rect(30,22,850,24),"GRIMÓRIO  /  MAGO ARCANO  /  "+(dungeon==null?"CÓDIGO INICIAL":"TENTATIVA ATUAL"),14,Accent,true);
             Label(new Rect(28,57,820,46),"Magia é uma questão de lógica.",31,White,true);
             if (Button(new Rect(1030,34,217,42),"Voltar ao "+(dungeon==null?"santuário":"jogo"))) CloseEditor();
             Box(new Rect(28,117,840,516),new Color(.025f,.035f,.057f));
             Box(new Rect(28,117,840,35),PanelColor);
-            Label(new Rect(43,123,580,25),selectedClass+".arc",14,Accent);
+            Label(new Rect(43,123,580,25),"MagoArcanista.arc",14,Accent);
             string status=draftResult!=null&&draftResult.Success?draftResult.Cost+" / "+Budget+" pontos":"Código não aplicável";
             Label(new Rect(625,123,225,25),status,13,draftResult!=null&&draftResult.Success?new Color(.43f,.9f,.71f):new Color(1,.52f,.51f));
             string[] lines=draft.Split('\n');
@@ -245,8 +254,8 @@ namespace ArcaneCode
             Label(new Rect(43,658,810,57),message,14,draftResult!=null&&!draftResult.Success?new Color(1,.6f,.55f):Muted);
             if (Button(new Rect(28,744,233,39),"Aplicar programa",true,draftResult!=null&&draftResult.Success)) ApplyDraft();
             if (Button(new Rect(276,744,185,39),"Código ativo")) { draft=source; ValidateDraft(); }
-            if (Button(new Rect(476,744,184,39),"Ataque básico")) { draft=SpellCompiler.Starter(selectedClass); ValidateDraft(); }
-            if (Button(new Rect(675,744,193,39),"Exemplo: carga")) { draft=SpellCompiler.Charged(selectedClass); ValidateDraft(); }
+            if (Button(new Rect(476,744,184,39),"Ataque básico")) { draft=SpellCompiler.Starter(MageClassName,PrimarySpellId); ValidateDraft(); }
+            if (Button(new Rect(675,744,193,39),"Exemplo: carga")) { draft=SpellCompiler.Charged(MageClassName,PrimarySpellId); ValidateDraft(); }
             DocumentationUI();
         }
         void CompleteAtCaret()
@@ -280,7 +289,7 @@ namespace ArcaneCode
             foreach (Match match in Regex.Matches(draft,@"(?m)^\s*(?:void|int|float|bool|Fireball|FlameWave|Icebolt|FrostNova)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*\)"))
             {
                 string method=match.Groups[1].Value;
-                if (method!="attackOne") add(method+"()",method+"()","método da sua classe");
+                if (method!=SpellCompiler.EntryMethod) add(method+"()",method+"()","método do seu mago");
             }
             completionIndex=Mathf.Clamp(completionIndex,0,Mathf.Max(0,completions.Count-1));
             completionVisible=completions.Count>0;
@@ -391,7 +400,7 @@ namespace ArcaneCode
             Label(new Rect(430,237,430,60),"Execução pausada.",30,White,true);
             if (Button(new Rect(430,317,420,49),"Continuar",true)) mode=ScreenMode.Run;
             if (Button(new Rect(430,384,420,49),"Restaurar ataque básico"))
-            { source=SpellCompiler.Starter(selectedClass); applied=SpellCompiler.Compile(source,Options()).Program; machine=CreateMachine(); mode=ScreenMode.Run; Notify("Ataque básico restaurado; rascunho preservado."); }
+            { source=SpellCompiler.Starter(MageClassName,PrimarySpellId); applied=SpellCompiler.Compile(source,Options()).Program; machine=CreateMachine(); mode=ScreenMode.Run; Notify("Ataque básico restaurado; rascunho preservado."); }
             if (Button(new Rect(430,452,420,49),"Encerrar tentativa e voltar à base")) FinishRun(false);
             Label(new Rect(430,526,420,47),"Os fragmentos coletados serão depositados.\nNíveis e melhorias da tentativa serão reiniciados.",14,Muted);
         }

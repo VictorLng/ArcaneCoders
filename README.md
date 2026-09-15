@@ -1,4 +1,4 @@
-# Arcane Code
+# ArcaneCoders
 
 Protótipo Unity 2D de um roguelite com feitiços programáveis. Você controla o movimento de um mago; uma pseudolinguagem tipada controla os ataques automáticos.
 
@@ -6,9 +6,9 @@ Protótipo Unity 2D de um roguelite com feitiços programáveis. Você controla 
 
 Unity **6000.6.0f1**, Universal Render Pipeline 2D.
 
-1. No Unity Hub, adicione esta pasta (`arcane-code`).
+1. No Unity Hub, adicione esta pasta (`ArcaneCoders`).
 2. Abra `Assets/Scenes/ArcaneCode.unity` e pressione **Play**.
-3. Escolha fogo ou gelo e entre na dungeon. A classe já começa com um programa funcional.
+3. Equipe uma staff e, opcionalmente, um grimório; o Mago Arcano já começa com um programa funcional.
 
 Os executáveis ficam em `Builds/Linux/ArcaneCode.x86_64` e `Builds/Windows/ArcaneCode.exe`. Mantenha o executável junto das pastas e bibliotecas do respectivo build.
 
@@ -16,6 +16,8 @@ Os executáveis ficam em `Builds/Linux/ArcaneCode.x86_64` e `Builds/Windows/Arca
 | --- | --- |
 | WASD / setas | Movimentar o mago |
 | TAB / E | Editar feitiços em uma sala limpa |
+| Q | Alternar staff de fogo/gelo em uma sala limpa |
+| R | Alternar a Runa de Ricochete, nível 1–3, em uma sala limpa |
 | ESC | Pausar, retomar ou encerrar a tentativa |
 | Ctrl + espaço | Completar nomes no editor de código |
 | F12 | Capturar a tela em `capture.png`, na pasta do perfil |
@@ -29,8 +31,8 @@ Se um programa válido não atacar, ou ocorrer erro durante sua execução, use 
 ## Feitiços
 
 ```csharp
-class MagoDeFogo extends Mago {
-    void attackOne() {
+class MagoArcanista extends Mago {
+    void constructor() {
         for (int i = 0; i < 3; i++) {
             this.charge(1);
         }
@@ -42,9 +44,9 @@ class MagoDeFogo extends Mago {
 }
 ```
 
-Esse programa custa **8 pontos**: loop 3, carregamento 1, condição 2 e criação de magia 2. A classe começa com 10 pontos. Também é possível escrever `this.fireball().cast();`.
+Esse programa custa **8 pontos**: loop 3, carregamento 1, condição 2 e criação de magia 2. O mago começa com 10 pontos. Também é possível escrever `this.fireball().cast();`.
 
-`attackOne()` é executado repetidamente, sem sobrepor execuções. `charge(n)` acumula de 1 a 10 unidades ao longo do tempo: 0,35 segundo por unidade, até a capacidade do mago. A movimentação continua disponível. Cada disparo consome toda a energia e ganha 25% de dano por unidade. Sem energia, o ataque básico funciona normalmente. O intervalo inicial entre disparos é de 0,6 segundo.
+`constructor()` é o job executado repetidamente, sem sobrepor execuções. `charge(n)` acumula de 1 a 10 unidades ao longo do tempo: 0,35 segundo por unidade, até a capacidade do mago. A movimentação continua disponível. Cada disparo consome toda a energia e ganha 25% de dano por unidade. Sem energia, o ataque básico funciona normalmente. O intervalo inicial entre disparos é de 0,6 segundo.
 
 Energia persiste entre chamadas na mesma sala e reinicia ao trocar de sala. O jogo pausado não carrega energia nem avança projéteis. Se não houver alvo visível, o lançamento não consome energia. Fogo aplica queimadura; gelo aplica lentidão e congela quando o disparo consome pelo menos três unidades. Chefes têm menor duração de congelamento.
 
@@ -57,11 +59,23 @@ Energia persiste entre chamadas na mesma sala e reinicia ao trocar de sala. O jo
 | `magia.cast()` | `void` | Lançar o objeto de magia |
 | `this.charge(int)` | `void` | Carregar energia |
 
+### Equipamento elemental
+
+O personagem é sempre `MagoArcanista`; o equipamento define quais feitiços o código pode usar.
+
+- A **staff** fornece o elemento principal, até dois sockets de runa e `+12%` de dano do seu elemento por nível acima do 1.
+- O **grimório** é opcional: ele adiciona seu próprio elemento ao grimório e concede `+8%` de dano por nível acima do 1 para as magias daquele elemento.
+- Staff de gelo + Grimório de fogo, por exemplo, liberam `icebolt()` e `fireball()` no mesmo programa.
+- A **Runa de Ricochete** faz projéteis acertarem o alvo mais próximo visível após um impacto. Cada nível concede um ricochete adicional, até três.
+- Trocas são restritas a salas limpas para que recompilar o programa e alterar magias disponíveis não interrompa combate ativo.
+
+As definições e instâncias ficam em `Assets/ArcaneCode/Core/MageEquipment.cs`. Fogo e gelo são o primeiro conteúdo; o catálogo já possui o tipo `ArcaneElement` para futuros elementos, como raio.
+
 Propriedades somente para leitura: `int this.energia`, `float this.vida`, `int this.inimigos`.
 
 Sintaxe suportada:
 
-- `class Nome extends Mago`, com nome correspondente à classe selecionada.
+- `class MagoArcanista extends Mago`.
 - Métodos sem argumentos com retorno `void`, `int`, `float`, `bool` ou um tipo de magia. Auxiliares podem ser chamados com `this.nome()` ou `nome()`.
 - `return valor;` em métodos tipados; todo caminho deve retornar o tipo declarado. Exemplo: `Fireball forte() { return this.fireball(); }`.
 - `speedCast(N)` é um método compartilhado da família `Mago`, desbloqueado permanentemente no santuário. Aceita N literal de 1 a 10, acelera charge e cast em `20% × N` e custa `3 × N` pontos de complexidade.
@@ -72,7 +86,7 @@ Sintaxe suportada:
 - `for (int i = 0; i < N; i++)`, com N literal de 1 a 10 e no máximo dois loops aninhados, contando auxiliares.
 - Comentários `//`.
 
-Declarações e `cast()` não ocupam pontos adicionais. O corpo do loop conta uma vez. Auxiliares são expandidos para contabilizar cada uso; auxiliares não usados também ocupam espaço. Recursão é rejeitada. Limites: 12.000 caracteres, 2.500 tokens, 16 métodos, 32 níveis de expressão/bloco, 128 passos de execução por frame e 2.048 instruções por chamada de `attackOne()`. Valores numéricos ficam entre −1.000.000 e 1.000.000. A linguagem é interpretada pelo jogo e não oferece acesso a C#, arquivos, rede ou APIs arbitrárias da Unity.
+Declarações e `cast()` não ocupam pontos adicionais. O corpo do loop conta uma vez. Auxiliares são expandidos para contabilizar cada uso; auxiliares não usados também ocupam espaço. Recursão é rejeitada. Limites: 12.000 caracteres, 2.500 tokens, 16 métodos, 32 níveis de expressão/bloco, 128 passos de execução por frame e 2.048 instruções por chamada de `constructor()`. Valores numéricos ficam entre −1.000.000 e 1.000.000. A linguagem é interpretada pelo jogo e não oferece acesso a C#, arquivos, rede ou APIs arbitrárias da Unity.
 
 ## Progressão e conteúdo
 
@@ -80,9 +94,9 @@ O protótipo contém oito salas por tentativa: entrada, quatro combates, recompe
 
 Recompensas temporárias incluem dano, vida, movimento, energia, complexidade e magia de área. A base vende vida, energia, complexidade inicial e desbloqueio permanente das magias de área. As construções da linguagem estão todas liberadas desde o início.
 
-Morte, vitória e encerramento pelo menu depositam os fragmentos uma única vez. Vitória também concede 30 fragmentos extras. Ao iniciar outra tentativa, níveis e melhorias temporárias reiniciam. O código editado na base define a próxima classe inicial; código e rascunhos feitos durante uma tentativa não concedem funções que ela ainda não possui.
+Morte, vitória e encerramento pelo menu depositam os fragmentos uma única vez. Vitória também concede 30 fragmentos extras. Ao iniciar outra tentativa, níveis e melhorias temporárias reiniciam. O código editado na base define o próximo loadout inicial; código e rascunhos feitos durante uma tentativa não concedem funções que o equipamento atual não possui.
 
-O save é `profile.json` em `Application.persistentDataPath` — normalmente, no Linux, `~/.config/unity3d/ArcaneWorkshop/Arcane Code/`. Há gravação por arquivo temporário, backup da versão anterior e preservação de arquivo inválido. A variável `ARCANE_PROFILE_DIR` permite usar outro diretório, especialmente em testes. Não há retomada de uma tentativa depois de fechar o jogo.
+O save é `profile.json` em `Application.persistentDataPath` — normalmente, no Linux, `~/.config/unity3d/ArcaneWorkshop/Arcane Code/`. Há gravação por arquivo temporário, backup da versão anterior e preservação de arquivo inválido. A versão 2 do perfil migra automaticamente o código das antigas classes de fogo/gelo para `MagoArcanista`. A variável `ARCANE_PROFILE_DIR` permite usar outro diretório, especialmente em testes. Não há retomada de uma tentativa depois de fechar o jogo.
 
 ## Desenvolvimento e testes
 
@@ -91,7 +105,7 @@ O save é `profile.json` em `Application.persistentDataPath` — normalmente, no
 - **Window → General → Test Runner**: execute as suítes EditMode e PlayMode.
 - Ajuste vida, velocidade, magias, inimigos e tempos em `Assets/Resources/GameConfig.asset`.
 
-Os testes EditMode verificam a linguagem, os custos, os limites e 1.000 sementes de dungeon. Os testes PlayMode cobrem as duas classes, projéteis, recompensas, troca de sala, chefe, preservação de código válido, pausa e persistência. Eles usam perfis temporários. O teste de ciclo elimina inimigos pelo handler de morte para validar a progressão; não substitui uma avaliação humana de dificuldade.
+Os testes EditMode verificam a linguagem, os custos, os limites, o loadout de staff/grimório, sockets de runa e 1.000 sementes de dungeon. Os testes PlayMode cobrem compatibilidade das antigas classes, projéteis, troca segura de staff, recompensas, troca de sala, chefe, preservação de código válido, pausa e persistência. Eles usam perfis temporários. O teste de ciclo elimina inimigos pelo handler de morte para validar a progressão; não substitui uma avaliação humana de dificuldade.
 
 Assemblies: `ArcaneCode.Core` não depende de Unity; `ArcaneCode.Runtime` contém jogo e apresentação; `ArcaneCode.Editor` prepara cenas e builds. A interface `ISpellWorld` conecta a máquina de feitiços ao combate.
 

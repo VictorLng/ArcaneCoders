@@ -47,7 +47,7 @@ namespace ArcaneCode.Tests
             foreach (string cls in new[] {"MagoDeFogo","MagoDeGelo"})
             {
                 game.StartRun(712,cls); Dungeon dungeon=Get<Dungeon>("dungeon");
-                string code=SpellCompiler.Charged(cls); Set("draft",code); Call("ApplyDraft");
+                string code=SpellCompiler.Charged("MagoArcanista",cls=="MagoDeFogo"?"fireball":"icebolt"); Set("draft",code); Call("ApplyDraft");
                 Assert.That(Get<SpellProgram>("applied").Cost,Is.EqualTo(8));
                 Assert.That(Get<SpellMachine>("machine"),Is.Not.Null);
                 int combat=dungeon.Rooms.FindIndex(r=>r.Kind==RoomKind.Combat);
@@ -97,13 +97,30 @@ namespace ArcaneCode.Tests
             game.AddEnergy(3); Call("EnterRoom",0,Vector2.zero); Assert.That(game.Energy,Is.Zero);
         }
         [UnityTest]
+        public IEnumerator SafeStaffSwapRebuildsTheGenericMageSpellbook()
+        {
+            game.StartRun(91,"MagoDeFogo");
+            var loadout=Get<MageLoadout>("loadout");
+            Assert.That(loadout.Staff.DefinitionId,Is.EqualTo("staff-fire"));
+            Assert.That(Get<HashSet<string>>("unlocked").Contains("fireball"),Is.True);
+
+            bool equipped=(bool)Call("EquipStaffDuringRun",new StaffInstance { DefinitionId="staff-ice",Level=2 });
+            loadout=Get<MageLoadout>("loadout");
+            Assert.That(equipped,Is.True); Assert.That(loadout.Staff.DefinitionId,Is.EqualTo("staff-ice"));
+            Assert.That(loadout.Grimoire,Is.Null);
+            Assert.That(Get<HashSet<string>>("unlocked").Contains("icebolt"),Is.True);
+            Assert.That(Get<HashSet<string>>("unlocked").Contains("fireball"),Is.False);
+            StringAssert.Contains("class MagoArcanista extends Mago",Get<string>("source"));
+            yield return null;
+        }
+        [UnityTest]
         public IEnumerator PermanentPurchasesPersistAndNewRunCanCastImmediately()
         {
             Profile profile=Get<Profile>("profile"); profile.Coins=300;
             Call("Buy","budget"); Call("Buy","fire"); Call("Buy","speedCast"); Assert.That(profile.BudgetRank,Is.EqualTo(1)); Assert.That(profile.FireUnlocked,Is.True); Assert.That(profile.SpeedCastUnlocked,Is.True);
             Call("LoadProfile"); profile=Get<Profile>("profile"); Assert.That(profile.FireUnlocked,Is.True); Assert.That(profile.SpeedCastUnlocked,Is.True); Assert.That(profile.BudgetRank,Is.EqualTo(1));
             game.StartRun(44,"MagoDeFogo"); Assert.That(Get<HashSet<string>>("unlocked").Contains("flameWave"),Is.True);
-            string speedCode="class MagoDeFogo extends Mago { void attackOne() { this.speedCast(1); this.fireball().cast(); } }";
+            string speedCode="class MagoArcanista extends Mago { void constructor() { this.speedCast(1); this.fireball().cast(); } }";
             Set("draft",speedCode); Call("ApplyDraft"); Assert.That(Get<SpellProgram>("applied").Cost,Is.EqualTo(5));
             Set("elapsed",90f); Set("lastCast",89f); Call("FinishRun",false); game.StartRun(44,"MagoDeGelo");
             Assert.That(Get<float>("lastCast"),Is.LessThan(0)); Assert.That(Get<HashSet<string>>("unlocked").Contains("flameWave"),Is.False);

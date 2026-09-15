@@ -8,7 +8,7 @@ namespace ArcaneCode.Tests
     public sealed class CoreTests
     {
         static CompileOptions Options(int budget=10,bool speedCast=false) => new CompileOptions {Budget=budget,SpeedCastUnlocked=speedCast};
-        static string Code(string body,string helpers="") => "class MagoDeFogo extends Mago { void attackOne() { "+body+" } "+helpers+" }";
+        static string Code(string body,string helpers="") => "class MagoDeFogo extends Mago { void constructor() { "+body+" } "+helpers+" }";
         sealed class World : ISpellWorld
         {
             public int Energy {get;private set;}
@@ -26,6 +26,19 @@ namespace ArcaneCode.Tests
             var result=SpellCompiler.Compile(SpellCompiler.Starter(name),options);
             Assert.That(result.Success,Is.True,result.Error?.ToString()); Assert.That(result.Cost,Is.EqualTo(2));
             var world=new World(); new SpellMachine(result.Program,world).Tick(.01f); Assert.That(world.Casts,Is.EqualTo(1));
+        }
+        [Test]
+        public void ConstructorIsTheRequiredEntryJobAndIsWhatTheMachineExecutes()
+        {
+            string missingConstructor="class MagoDeFogo extends Mago { void attackOne() { this.fireball().cast(); } }";
+            var result=SpellCompiler.Compile(missingConstructor,Options());
+            Assert.That(result.Success,Is.False); StringAssert.Contains("constructor",result.Error.Message);
+
+            string source="class MagoDeFogo extends Mago { void constructor() { this.fireball().cast(); } void attackOne() { this.charge(1); } }";
+            result=SpellCompiler.Compile(source,Options());
+            Assert.That(result.Success,Is.True,result.Error?.ToString());
+            var world=new World(); new SpellMachine(result.Program,world).Tick(.01f);
+            Assert.That(world.Casts,Is.EqualTo(1)); Assert.That(world.Energy,Is.Zero);
         }
         [Test]
         public void ChargeTakesCombatTimeAndCastConsumesIt()
@@ -54,7 +67,7 @@ namespace ArcaneCode.Tests
         [Test]
         public void DiagnosticsHaveLineAndColumn()
         {
-            var result=SpellCompiler.Compile("class MagoDeFogo extends Mago {\nvoid attackOne() {\n  int x = false;\n}\n}",Options());
+            var result=SpellCompiler.Compile("class MagoDeFogo extends Mago {\nvoid constructor() {\n  int x = false;\n}\n}",Options());
             Assert.That(result.Error.Line,Is.EqualTo(3)); Assert.That(result.Error.Column,Is.EqualTo(3));
         }
         [Test]
@@ -62,7 +75,7 @@ namespace ArcaneCode.Tests
         {
             var result=SpellCompiler.Compile(Code("this.helper(); this.helper();","void helper() { this.fireball().cast(); }"),Options());
             Assert.That(result.Success,Is.True,result.Error?.ToString()); Assert.That(result.Cost,Is.EqualTo(4));
-            result=SpellCompiler.Compile(Code("this.helper();","void helper() { this.attackOne(); }"),Options());
+            result=SpellCompiler.Compile(Code("this.helper();","void helper() { this.constructor(); }"),Options());
             Assert.That(result.Success,Is.False); StringAssert.Contains("Recursão",result.Error.Message);
         }
         [Test]

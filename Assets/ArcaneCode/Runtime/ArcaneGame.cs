@@ -11,6 +11,7 @@ namespace ArcaneCode
 {
     public sealed partial class ArcaneGame : MonoBehaviour, ISpellWorld
     {
+        const string MageClassName = "MagoArcanista";
         enum ScreenMode { Hub, Run, Rewards, Editor, Pause, Result }
         ScreenMode mode = ScreenMode.Hub, editorReturn;
         GameConfig config;
@@ -18,11 +19,12 @@ namespace ArcaneCode
         Dungeon dungeon;
         int roomIndex, level, xp, pendingLevels, runCoins, budgetBonus, energyBonus, healthBonus;
         int seed;
-        string seedText = "", selectedClass = "MagoDeFogo", runId, source, draft, editorMessage = "", toast = "";
+        string seedText = "", runId, source, draft, editorMessage = "", toast = "";
         float toastTime, damageBonus, speedBonus, hp, invincible, elapsed, lastCast = -10, transition;
         bool rewardIsLevel, won, banked, saveDirty, speedCastUnlocked;
         string resultTitle;
         HashSet<string> unlocked = new HashSet<string>();
+        MageLoadout loadout;
         SpellProgram applied;
         SpellMachine machine;
         Transform roomRoot, player;
@@ -40,7 +42,9 @@ namespace ArcaneCode
         int Budget => config.InitialBudget + profile.BudgetRank * 2 + budgetBonus;
         float MaxHealth => config.PlayerHealth + profile.HealthRank * 15 + healthBonus;
         int NextXP => 25 + (level - 1) * 15;
-        Color Accent => selectedClass == "MagoDeFogo" ? new Color(1,.57f,.29f) : new Color(.35f,.82f,1);
+        ArcaneElement PrimaryElement => MageEquipmentCatalog.TryGetStaff(loadout?.Staff?.DefinitionId, out StaffDefinition staff) ? staff.Element : ArcaneElement.Fire;
+        string PrimarySpellId => MageEquipmentCatalog.TryGetStaff(loadout?.Staff?.DefinitionId, out StaffDefinition staff) ? staff.BaseSpellId : "fireball";
+        Color Accent => PrimaryElement == ArcaneElement.Ice ? new Color(.35f,.82f,1) : PrimaryElement == ArcaneElement.Lightning ? new Color(.78f,.58f,1) : new Color(1,.57f,.29f);
         Room CurrentRoom => dungeon.Rooms[roomIndex];
         bool Safe => dungeon == null || CurrentRoom.Cleared;
         string SaveDirectory => Environment.GetEnvironmentVariable("ARCANE_PROFILE_DIR") ?? Application.persistentDataPath;
@@ -54,6 +58,9 @@ namespace ArcaneCode
 
         void Awake()
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            LoadDevelopmentEnvironment();
+#endif
             Application.targetFrameRate = 60;
             config = Resources.Load<GameConfig>("GameConfig") ?? ScriptableObject.CreateInstance<GameConfig>();
             LoadProfile();
@@ -66,6 +73,13 @@ namespace ArcaneCode
             { var light = new GameObject("Luz ambiente").AddComponent<Light2D>(); light.lightType = Light2D.LightType.Global; light.intensity = .7f; }
             PrepareHub();
         }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        void LoadDevelopmentEnvironment()
+        {
+            DirectoryInfo project=Directory.GetParent(Application.dataPath);
+            if (project!=null) DotEnv.LoadFile(Path.Combine(project.FullName,".env"));
+        }
+#endif
 
         void LoadProfile()
         {
@@ -73,7 +87,8 @@ namespace ArcaneCode
             try
             {
                 if (File.Exists(SavePath)) profile = JsonUtility.FromJson<Profile>(File.ReadAllText(SavePath)) ?? new Profile();
-                if (profile.Version != 1 || profile.Coins < 0) throw new IOException("Formato de save inválido.");
+                MigrateProfile();
+                if (profile.Version != Profile.CurrentVersion || profile.Coins < 0) throw new IOException("Formato de save inválido.");
                 profile.HealthRank = Mathf.Clamp(profile.HealthRank,0,5); profile.EnergyRank = Mathf.Clamp(profile.EnergyRank,0,5); profile.BudgetRank = Mathf.Clamp(profile.BudgetRank,0,5);
             }
             catch (Exception e)
@@ -82,11 +97,29 @@ namespace ArcaneCode
                 try { if (File.Exists(SavePath)) File.Copy(SavePath, SavePath + ".invalid-" + DateTime.UtcNow.Ticks, false); } catch (IOException) { }
                 profile = new Profile(); toast = "Save anterior preservado como backup; novo perfil iniciado."; toastTime = 10;
             }
+            LoadEquipment();
         }
+        void MigrateProfile()
+        {
+            if (profile.Version == 1)
+            {
+                profile.MageCode = string.IsNullOrEmpty(profile.FireCode) ? profile.IceCode : profile.FireCode;
+                profile.MageDraft = string.IsNullOrEmpty(profile.FireDraft) ? profile.IceDraft : profile.FireDraft;
+                profile.EquippedStaff = new StaffInstance { DefinitionId="staff-fire",Level=1 };
+                profile.Version = Profile.CurrentVersion;
+            }
+        }
+        void LoadEquipment()
+        {
+            loadout = new MageLoadout(profile.EquippedStaff,profile.EquippedGrimoire);
+            SyncEquipmentToProfile();
+        }
+        void SyncEquipmentToProfile() { profile.EquippedStaff=loadout.Staff; profile.EquippedGrimoire=loadout.Grimoire; }
         void SaveProfile()
         {
             try
             {
+                SyncEquipmentToProfile();
                 Directory.CreateDirectory(SaveDirectory);
                 string temp = SavePath + ".tmp";
                 File.WriteAllText(temp, JsonUtility.ToJson(profile, true));
@@ -98,14 +131,31 @@ namespace ArcaneCode
         void OnApplicationQuit() { SaveDraft(); SaveProfile(); }
         void Notify(string message) { toast = message; toastTime = 5; }
 
-        CompileOptions Options() => new CompileOptions { ClassName = selectedClass, Budget = Budget, Spells = new HashSet<string>(unlocked), SpeedCastUnlocked = speedCastUnlocked };
+        CompileOptions Options() => new CompileOptions { ClassName = MageClassName, Budget = Budget, Spells = new HashSet<string>(unlocked), SpeedCastUnlocked = speedCastUnlocked };
         SpellMachine CreateMachine() => new SpellMachine(applied,this,config.ChargeSeconds,config.SpellInterval);
         void SetUnlocks()
         {
-            unlocked.Clear(); bool fire = selectedClass == "MagoDeFogo";
-            unlocked.Add(fire ? "fireball" : "icebolt");
-            if (fire ? profile.FireUnlocked : profile.IceUnlocked) unlocked.Add(fire ? "flameWave" : "frostNova");
+            unlocked.Clear();
+            foreach (string spell in loadout.BaseSpellIds) unlocked.Add(spell);
+            foreach (ArcaneElement element in loadout.Elements)
+            {
+                if (element == ArcaneElement.Fire && profile.FireUnlocked) unlocked.Add("flameWave");
+                if (element == ArcaneElement.Ice && profile.IceUnlocked) unlocked.Add("frostNova");
+            }
             speedCastUnlocked = profile.SpeedCastUnlocked;
+        }
+        string NormalizeMageSource(string code)
+        {
+            if (string.IsNullOrEmpty(code)) return code;
+            return code.Replace("class MagoDeFogo extends Mago","class "+MageClassName+" extends Mago").Replace("class MagoDeGelo extends Mago","class "+MageClassName+" extends Mago");
+        }
+        void RestoreProgramForLoadout()
+        {
+            source = NormalizeMageSource(source);
+            var compiled = SpellCompiler.Compile(source,Options());
+            if (!compiled.Success) { source=SpellCompiler.Starter(MageClassName,PrimarySpellId); compiled=SpellCompiler.Compile(source,Options()); }
+            applied=compiled.Program;
+            if (dungeon != null) machine=CreateMachine();
         }
         void PrepareHub()
         {
@@ -113,27 +163,33 @@ namespace ArcaneCode
             level = 1; xp = pendingLevels = runCoins = 0; elapsed = 0; lastCast = -10; rewardIsLevel = false; rewards.Clear();
             machine?.Reset(); machine = null;
             mode = ScreenMode.Hub; SetUnlocks(); energy = 0; hp = MaxHealth;
-            source = selectedClass == "MagoDeFogo" ? profile.FireCode : profile.IceCode;
+            source = NormalizeMageSource(profile.MageCode);
             var compiled = SpellCompiler.Compile(source, Options());
-            if (!compiled.Success) { source = SpellCompiler.Starter(selectedClass); compiled = SpellCompiler.Compile(source, Options()); }
+            if (!compiled.Success) { source = SpellCompiler.Starter(MageClassName,PrimarySpellId); compiled = SpellCompiler.Compile(source, Options()); }
             applied = compiled.Program;
             BuildRoomArt(0, true); SpawnPlayer(Vector2.zero);
         }
         public void StartRun(int requestedSeed, string className)
         {
-            selectedClass = className; budgetBonus = energyBonus = healthBonus = 0; damageBonus = speedBonus = 0;
+            string staffId=className=="MagoDeGelo"?"staff-ice":"staff-fire";
+            EquipStaffDuringRun(new StaffInstance { DefinitionId=staffId,Level=1 });
+            StartRun(requestedSeed);
+        }
+        void StartRun(int requestedSeed)
+        {
+            budgetBonus = energyBonus = healthBonus = 0; damageBonus = speedBonus = 0;
             SetUnlocks(); seed = requestedSeed; random = new System.Random(seed); dungeon = Dungeon.Generate(seed);
             runId = Guid.NewGuid().ToString("N"); level = 1; xp = pendingLevels = runCoins = 0; elapsed = 0; lastCast = -10; banked = false; draft = null;
-            source = selectedClass == "MagoDeFogo" ? profile.FireCode : profile.IceCode;
+            source = NormalizeMageSource(profile.MageCode);
             var result = SpellCompiler.Compile(source, Options());
-            if (!result.Success) { source = SpellCompiler.Starter(selectedClass); result = SpellCompiler.Compile(source, Options()); }
+            if (!result.Success) { source = SpellCompiler.Starter(MageClassName,PrimarySpellId); result = SpellCompiler.Compile(source, Options()); }
             applied = result.Program; hp = MaxHealth; mode = ScreenMode.Run; EnterRoom(0, Vector2.zero);
         }
         void StartFromHub()
         {
             if (!string.IsNullOrWhiteSpace(seedText) && !int.TryParse(seedText, out seed)) { Notify("A semente deve ser um número inteiro."); return; }
             if (string.IsNullOrWhiteSpace(seedText)) seed = Environment.TickCount;
-            StartRun(seed, selectedClass);
+            StartRun(seed);
         }
         void SpawnPlayer(Vector2 at)
         {
@@ -162,6 +218,12 @@ namespace ArcaneCode
                 if (keyboard.escapeKey.wasPressedThisFrame) { mode = ScreenMode.Pause; return; }
                 if (keyboard.tabKey.wasPressedThisFrame || keyboard.eKey.wasPressedThisFrame)
                 { if (Safe) OpenEditor(ScreenMode.Run); else Notify("Limpe a sala ou suba de nível para editar."); if (mode != ScreenMode.Run) return; }
+                if (keyboard.qKey.wasPressedThisFrame && Safe)
+                {
+                    string next=loadout.Staff.DefinitionId=="staff-fire"?"staff-ice":"staff-fire";
+                    EquipStaffDuringRun(new StaffInstance { DefinitionId=next,Level=1 });
+                }
+                if (keyboard.rKey.wasPressedThisFrame && Safe) CycleRicochetRune();
             }
             float dt = Mathf.Min(Time.deltaTime,.05f); elapsed += dt; invincible -= dt; transition -= dt;
             Vector2 direction = Vector2.zero;
@@ -172,7 +234,9 @@ namespace ArcaneCode
             }
             playerPosition = Move(playerPosition, direction.normalized * (config.PlayerSpeed * (1+speedBonus) * dt), .27f);
             player.position = playerPosition; WorldArt.Sort(playerArt, elapsed*12, direction.sqrMagnitude > 0);
-            playerArt.Body.color = invincible > 0 && Mathf.Sin(elapsed*45) > 0 ? Color.white : Accent;
+            playerArt.Face(direction);
+            Color playerColor = playerArt.Directional ? Color.white : Accent;
+            playerArt.Body.color = invincible > 0 && Mathf.Sin(elapsed*45) > 0 ? new Color(playerColor.r,playerColor.g,playerColor.b,.4f) : playerColor;
             if (!CurrentRoom.Cleared) machine.Tick(dt);
             UpdateCombat(dt);
             if (hp <= 0) { FinishRun(false); return; }
@@ -202,8 +266,8 @@ namespace ArcaneCode
                 new Reward { Id="health", Title="Vitalidade", Description="+15 de vida máxima e recupera 25 de vida.", Tag="VIGOR" },
                 new Reward { Id="speed", Title="Passo etéreo", Description="+8% de velocidade de movimento.", Tag="MOBILIDADE" }
             };
-            string area = selectedClass == "MagoDeFogo" ? "flameWave" : "frostNova";
-            if (!unlocked.Contains(area)) pool.Add(new Reward { Id=area, Title=selectedClass=="MagoDeFogo"?"Onda de chamas":"Nova congelante", Description="Libera this."+area+"() nesta tentativa. Insira a chamada no grimório.", Tag="NOVA MAGIA" });
+            if (loadout.Elements.Contains(ArcaneElement.Fire) && !unlocked.Contains("flameWave")) pool.Add(new Reward { Id="flameWave", Title="Onda de chamas", Description="Libera this.flameWave() nesta tentativa. Insira a chamada no grimório.", Tag="NOVA MAGIA" });
+            if (loadout.Elements.Contains(ArcaneElement.Ice) && !unlocked.Contains("frostNova")) pool.Add(new Reward { Id="frostNova", Title="Nova congelante", Description="Libera this.frostNova() nesta tentativa. Insira a chamada no grimório.", Tag="NOVA MAGIA" });
             while (rewards.Count < 3) { int index = random.Next(pool.Count); rewards.Add(pool[index]); pool.RemoveAt(index); }
         }
         void ChooseReward(Reward reward)
@@ -220,14 +284,14 @@ namespace ArcaneCode
         void OpenEditor(ScreenMode returnTo)
         {
             editorReturn = returnTo; mode = ScreenMode.Editor;
-            string saved = selectedClass == "MagoDeFogo" ? profile.FireDraft : profile.IceDraft;
+            string saved = profile.MageDraft;
             draft = string.IsNullOrEmpty(saved) ? source : saved;
             editorMessage = "Código ativo preservado até você aplicar as alterações."; ValidateDraft();
         }
         void SaveDraft()
         {
             if (draft == null) return;
-            if (selectedClass == "MagoDeFogo") profile.FireDraft = draft; else profile.IceDraft = draft;
+            profile.MageDraft = draft;
         }
         void CloseEditor()
         {
@@ -239,8 +303,36 @@ namespace ArcaneCode
             var compiled = SpellCompiler.Compile(draft,Options());
             if (!compiled.Success) { editorMessage = compiled.Error.ToString(); return; }
             source = draft; applied = compiled.Program; machine = CreateMachine();
-            if (dungeon == null) { if (selectedClass == "MagoDeFogo") profile.FireCode = source; else profile.IceCode = source; }
-            SaveDraft(); SaveProfile(); editorMessage = "Programa aplicado. A próxima execução começará em attackOne()."; ValidateDraft();
+            if (dungeon == null) profile.MageCode = source;
+            SaveDraft(); SaveProfile(); editorMessage = "Programa aplicado. A próxima execução começará em constructor()."; ValidateDraft();
+        }
+        bool EquipStaffDuringRun(StaffInstance staff)
+        {
+            if (mode == ScreenMode.Run && !Safe || !loadout.EquipStaff(staff)) return false;
+            SetUnlocks(); RestoreProgramForLoadout(); SyncEquipmentToProfile();
+            string label=MageEquipmentCatalog.TryGetStaff(loadout.Staff.DefinitionId,out StaffDefinition definition) ? definition.Label : loadout.Staff.DefinitionId;
+            Notify("Staff equipada: "+label);
+            return true;
+        }
+        bool EquipGrimoire(GrimoireInstance grimoire)
+        {
+            if (mode == ScreenMode.Run && !Safe || !loadout.EquipGrimoire(grimoire)) return false;
+            SetUnlocks(); RestoreProgramForLoadout(); SyncEquipmentToProfile();
+            Notify(grimoire==null?"Grimório removido.":"Grimório equipado.");
+            return true;
+        }
+        void CycleRicochetRune()
+        {
+            var candidate = new StaffInstance { DefinitionId=loadout.Staff.DefinitionId,Level=loadout.Staff.Level };
+            int rank=0;
+            foreach (RuneInstance rune in loadout.Staff.Runes)
+            {
+                if (rune.DefinitionId == "rune-ricochet") rank=rune.Rank;
+                else candidate.Runes.Add(new RuneInstance { DefinitionId=rune.DefinitionId,Rank=rune.Rank });
+            }
+            rank=(rank+1)%4;
+            if (rank>0) candidate.Runes.Add(new RuneInstance { DefinitionId="rune-ricochet",Rank=rank });
+            if (EquipStaffDuringRun(candidate)) Notify(rank==0?"Runa de ricochete removida.":"Runa de ricochete nível "+rank+" equipada.");
         }
         void FinishRun(bool victory)
         {

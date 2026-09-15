@@ -25,7 +25,7 @@ namespace ArcaneCode
             public SpellDefinition Spell;
             public float Damage, Life = 4, Radius;
             public bool Hostile;
-            public int Energy;
+            public int Energy, Ricochets;
         }
         sealed class Orb { public Transform View; public Vector2 Position; public int Amount; }
         sealed class Effect { public Transform View; public SpriteRenderer Renderer; public float Life, Duration, Radius; public Color Color; }
@@ -222,7 +222,7 @@ namespace ArcaneCode
             if (mode!=ScreenMode.Run || elapsed-lastCast<config.SpellInterval/speed || !unlocked.Contains(spellId)) return false;
             SpellDefinition definition=SpellFor(spellId); Enemy target=FindTarget();
             if (definition==null || target==null) return false;
-            int charged=Mathf.Max(1,energy); float damage=definition.Damage*(1+damageBonus)*(1+charged*.25f);
+            int charged=Mathf.Max(1,energy); float damage=definition.Damage*(1+damageBonus)*(1+charged*.25f)*loadout.DamageMultiplierFor(spellId);
             energy=0; lastCast=elapsed;
             if (definition.Area)
             {
@@ -236,7 +236,7 @@ namespace ArcaneCode
             else
             {
                 Vector2 direction=(target.Position-playerPosition).normalized;
-                var shot=new Shot { Position=playerPosition,Velocity=direction*definition.Speed,Spell=definition,Damage=damage,Radius=definition.Radius,Energy=charged };
+                var shot=new Shot { Position=playerPosition,Velocity=direction*definition.Speed,Spell=definition,Damage=damage,Radius=definition.Radius,Energy=charged,Ricochets=loadout.RicochetCount };
                 shot.View=WorldArt.Draw(roomRoot,definition.Ice?"diamond":"disc",shot.Position,Vector2.one*(definition.Radius*2+.05f*charged),definition.Color,350,false).transform; shots.Add(shot);
             }
             return true;
@@ -257,6 +257,23 @@ namespace ArcaneCode
                 Burst(enemy.Position,.5f,spell.Color,.18f);
             }
             if (enemy.HP<=0) Kill(enemy);
+        }
+        bool RedirectRicochet(Shot shot, Enemy hit)
+        {
+            if (shot.Ricochets <= 0) return false;
+            Enemy target=null; float distance=float.MaxValue;
+            for (int i=0;i<enemies.Count;i++)
+            {
+                Enemy candidate=enemies[i];
+                if (candidate==hit || !Visible(hit.Position,candidate.Position)) continue;
+                float candidateDistance=(candidate.Position-hit.Position).sqrMagnitude;
+                if (candidateDistance<distance) { distance=candidateDistance; target=candidate; }
+            }
+            if (target==null) return false;
+            shot.Ricochets--; shot.Position=hit.Position;
+            shot.Velocity=(target.Position-hit.Position).normalized*shot.Velocity.magnitude;
+            Burst(hit.Position,.32f,shot.Spell.Color,.12f);
+            return true;
         }
         void Kill(Enemy enemy)
         {
@@ -343,7 +360,7 @@ namespace ArcaneCode
                     else for (int enemyIndex=enemies.Count-1;enemyIndex>=0;enemyIndex--)
                     {
                         Enemy enemy=enemies[enemyIndex];
-                        if (Vector2.Distance(shot.Position,enemy.Position)<shot.Radius+(enemy.Boss?.65f:.32f)) { Hit(enemy,shot.Damage,shot.Spell,shot.Energy); hit=true; break; }
+                        if (Vector2.Distance(shot.Position,enemy.Position)<shot.Radius+(enemy.Boss?.65f:.32f)) { Hit(enemy,shot.Damage,shot.Spell,shot.Energy); hit=!RedirectRicochet(shot,enemy); break; }
                     }
                 }
                 if (hit || shot.Life<=0) { Destroy(shot.View.gameObject); shots.RemoveAt(i); } else shot.View.position=shot.Position;

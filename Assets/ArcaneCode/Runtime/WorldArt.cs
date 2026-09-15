@@ -9,10 +9,22 @@ namespace ArcaneCode
     {
         public SpriteRenderer Shadow { get; private set; }
         public SpriteRenderer Body { get; private set; }
+        public bool Directional { get; private set; }
         public void Initialize(SpriteRenderer shadow, SpriteRenderer body) { Shadow = shadow; Body = body; }
+        public void EnableDirections()
+        {
+            Sprite pose = MageSprites.Facing(Vector2.down);
+            if (pose == null) return;
+            Directional = true; Body.sprite = pose; Body.color = Color.white;
+            Body.transform.localPosition = Vector3.zero;
+        }
+        public void Face(Vector2 direction)
+        {
+            if (Directional && direction.sqrMagnitude > .001f) Body.sprite = MageSprites.Facing(direction);
+        }
     }
 
-    // Original, code-native prototype sprites. No external artwork is required.
+    // Procedural environment/enemies; the mage uses an imported directional sheet.
     public static class WorldArt
     {
         static readonly Dictionary<string, Sprite> Sprites = new Dictionary<string, Sprite>();
@@ -91,12 +103,15 @@ namespace ArcaneCode
             var root = new GameObject(shape).transform; root.SetParent(parent); root.position = position;
             SpriteRenderer shadow=Draw(root,"disc",Vector2.zero,new Vector2(size*.68f,size*.22f),new Color(0,0,0,.4f),1,false);
             SpriteRenderer body=Draw(root,shape,new Vector2(0,size*.34f),Vector2.one*size,color,2);
-            var art=root.gameObject.AddComponent<ActorArt>(); art.Initialize(shadow,body); return art;
+            var art=root.gameObject.AddComponent<ActorArt>(); art.Initialize(shadow,body);
+            if (shape == "mage") art.EnableDirections();
+            return art;
         }
         public static void Sort(ActorArt actor, float phase, bool moving)
         {
             int order = 100 - Mathf.RoundToInt(actor.transform.position.y * 15);
             actor.Shadow.sortingOrder=order; actor.Body.sortingOrder=order+1;
+            if (actor.Directional) return;
             Transform body=actor.Body.transform;
             Vector3 p=body.localPosition; p.y=body.localScale.y*.34f+(moving?Mathf.Sin(phase)*.045f:Mathf.Sin(phase*.4f)*.014f); body.localPosition=p;
         }

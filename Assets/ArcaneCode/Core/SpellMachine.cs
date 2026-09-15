@@ -62,7 +62,7 @@ namespace ArcaneCode.Core
                     if (pending != null && pending.Kind == "charge") world.AddEnergy(1);
                     pending = null;
                 }
-                if (execution == null) { steps = speedCastRank = 0; execution = Run(program.Methods["attackOne"], new Scope()).GetEnumerator(); }
+                if (execution == null) { steps = speedCastRank = 0; execution = Run(program.Methods[SpellCompiler.EntryMethod], new Scope()).GetEnumerator(); }
                 for (int frame = 0; frame < FrameLimit; frame++)
                 {
                     if (!execution.MoveNext()) { execution.Dispose(); execution = null; wait = .05f; return; }
