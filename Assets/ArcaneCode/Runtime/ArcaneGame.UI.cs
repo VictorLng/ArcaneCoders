@@ -17,13 +17,20 @@ namespace ArcaneCode
         Vector2 codeScroll, docsScroll;
         CompileResult draftResult;
         string highlighted = "", highlightedSource = "";
-        int caret;
+        int caret, selectionCaret;
         bool focusCode;
+        const int DraftHistoryLimit = 100;
+        struct DraftEdit { public string Text; public int Cursor, Selection; }
+        readonly List<DraftEdit> draftUndo = new List<DraftEdit>();
+        readonly List<DraftEdit> draftRedo = new List<DraftEdit>();
         float uiScale;
         sealed class Completion { public string Label, Insert, Detail; }
         readonly List<Completion> completions = new List<Completion>();
         bool completionVisible;
         int completionIndex;
+        bool inventoryStatsOpen;
+        string selectedInventoryItemId;
+        readonly List<Rect> controllerFocusTargets = new List<Rect>();
 
         void Styles()
         {
@@ -46,19 +53,62 @@ namespace ArcaneCode
         { var style=new GUIStyle(textStyle) {fontSize=size,fontStyle=bold?FontStyle.Bold:FontStyle.Normal}; style.normal.textColor=color??White; rect.height=Mathf.Max(rect.height,style.lineHeight+4); GUI.Label(rect,text,style); }
         bool Button(Rect rect,string label,bool primary=false,bool enabled=true)
         {
+            int controllerIndex = -1;
+            if (enabled)
+            {
+                controllerIndex = controllerFocusTargets.Count;
+                controllerFocusTargets.Add(rect);
+            }
+            bool controllerFocused = ControllerHintsVisible && controllerIndex == controllerFocus;
+            bool controllerClicked = controllerFocused && controllerConfirmPending;
+            if (controllerClicked) controllerConfirmPending = false;
             bool previous=GUI.enabled; GUI.enabled=enabled;
             bool hover=rect.Contains(Event.current.mousePosition)&&enabled;
             Color fill=primary?new Color(Accent.r*.28f,Accent.g*.28f,Accent.b*.28f):new Color(.13f,.18f,.26f);
             if (hover) fill*=1.35f; if (!enabled) fill*=.65f;
             Box(rect,fill); Box(new Rect(rect.x,rect.y,rect.width,2),enabled&&primary?Accent:new Color(.25f,.31f,.4f));
+            if (controllerFocused)
+            {
+                Box(new Rect(rect.x,rect.y,rect.width,2),Accent);
+                Box(new Rect(rect.x,rect.y+rect.height-2,rect.width,2),Accent);
+                Box(new Rect(rect.x,rect.y,2,rect.height),Accent);
+                Box(new Rect(rect.x+rect.width-2,rect.y,2,rect.height),Accent);
+            }
             var style=new GUIStyle(buttonStyle); while (style.fontSize>11 && style.CalcSize(new GUIContent(label)).x>rect.width) style.fontSize--;
-            bool clicked=GUI.Button(rect,label,style); GUI.enabled=previous; return clicked;
+            bool clicked=GUI.Button(rect,label,style); GUI.enabled=previous; return clicked || controllerClicked;
+        }
+        void MoveControllerFocus(Vector2 direction)
+        {
+            if (controllerFocusTargets.Count==0) return;
+            // Gamepad up is positive Y, while IMGUI rectangles grow downward.
+            direction.y = -direction.y;
+            controllerFocus=Mathf.Clamp(controllerFocus,0,controllerFocusTargets.Count-1);
+            Vector2 origin=controllerFocusTargets[controllerFocus].center;
+            int best=-1; float bestScore=float.NegativeInfinity;
+            for (int i=0;i<controllerFocusTargets.Count;i++)
+            {
+                if (i==controllerFocus) continue;
+                Vector2 delta=controllerFocusTargets[i].center-origin;
+                if (delta.sqrMagnitude<.01f) continue;
+                float alignment=Vector2.Dot(delta.normalized,direction);
+                if (alignment<.2f) continue;
+                float score=alignment*1000f-delta.magnitude;
+                if (score>bestScore) { bestScore=score; best=i; }
+            }
+            if (best>=0) controllerFocus=best;
+        }
+        void ControllerHint(Rect rect,string text)
+        {
+            if (!ControllerHintsVisible) return;
+            Box(rect,new Color(.06f,.1f,.16f,.94f));
+            Label(new Rect(rect.x+12,rect.y+5,rect.width-24,rect.height-8),text,12,Muted);
         }
         void Bar(Rect rect,float value,Color color)
         { Box(rect,new Color(.12f,.16f,.23f)); Box(new Rect(rect.x,rect.y,rect.width*Mathf.Clamp01(value),rect.height),color); }
         void OnGUI()
         {
             Styles();
+            controllerFocusTargets.Clear();
             uiScale=Mathf.Min(Screen.width/1280f,Screen.height/800f);
             GUI.matrix=Matrix4x4.TRS(new Vector3((Screen.width-1280*uiScale)/2,(Screen.height-800*uiScale)/2,0),Quaternion.identity,Vector3.one*uiScale);
             switch (mode)
@@ -66,11 +116,33 @@ namespace ArcaneCode
                 case ScreenMode.Hub: HubUI(); break;
                 case ScreenMode.Run: HUD(); break;
                 case ScreenMode.Rewards: HUD(); RewardsUI(); break;
+                case ScreenMode.Shop: HUD(); ShopUI(); break;
+                case ScreenMode.Inventory: HUD(); InventoryUI(); break;
                 case ScreenMode.Editor: EditorUI(); break;
                 case ScreenMode.Pause: HUD(); PauseUI(); break;
+                case ScreenMode.SaveProgram: SaveProgramUI(); break;
                 case ScreenMode.Result: ResultUI(); break;
             }
             if (mode==ScreenMode.Run && transition>0) Box(new Rect(0,0,1280,800),new Color(.02f,.03f,.05f,Mathf.Clamp01(transition/.7f)));
+            if (!string.IsNullOrEmpty(tutorialMessage) && mode == ScreenMode.Inventory)
+            {
+                Box(new Rect(312,686,916,54),PanelColor);
+                Box(new Rect(312,686,4,54),Accent);
+                Label(new Rect(328,693,884,42),"TUTORIAL  ·  "+tutorialMessage,13,White);
+            }
+            else if (!string.IsNullOrEmpty(tutorialMessage) && (mode == ScreenMode.Rewards || mode == ScreenMode.Shop))
+            {
+                Box(new Rect(52,183,1176,48),PanelColor);
+                Box(new Rect(52,183,4,48),Accent);
+                Label(new Rect(68,190,1148,36),"TUTORIAL OPCIONAL  ·  "+tutorialMessage,13,White);
+            }
+            else if (!string.IsNullOrEmpty(tutorialMessage) && mode == ScreenMode.Run)
+            {
+                Box(new Rect(385,205,510,104),PanelColor);
+                Box(new Rect(385,205,4,104),Accent);
+                Label(new Rect(405,216,470,22),"TUTORIAL OPCIONAL",12,Accent,true);
+                Label(new Rect(405,241,470,58),tutorialMessage,15,White);
+            }
             if (toastTime>0)
             { Box(new Rect(240,742,800,40),PanelColor); Label(new Rect(255,750,770,28),toast,14,Accent); }
             GUI.matrix=Matrix4x4.identity;
@@ -84,20 +156,30 @@ namespace ArcaneCode
         void HubUI()
         {
             Box(new Rect(0,0,1280,800),Background);
-            Header("O SANTUÁRIO  /  EQUIPAMENTO 01","ARCANE CODERS","O mago é você. A staff e o grimório definem sua magia.");
+            Header("O SANTUÁRIO  /  PREPARE A TENTATIVA","ARCANE CODERS","Escolha o grimório inicial do mago. Encontre novos equipamentos dentro da dungeon.");
             Label(new Rect(977,40,250,30),"◈  "+profile.Coins+" fragmentos",18,Accent,true);
             Label(new Rect(977,75,250,24),profile.Runs+" tentativas · "+profile.Wins+" vitórias",13,Muted);
-            StaffCard(new Rect(52,195,350,215),"staff-fire","01  /  STAFF DE FOGO","Fogo que persiste.\nProjéteis + queimadura.",new Color(1,.57f,.29f));
-            StaffCard(new Rect(424,195,350,215),"staff-ice","02  /  STAFF DE GELO","Controle o ritmo da luta.\nLentidão + congelamento.",new Color(.35f,.82f,1));
+            if (Button(new Rect(977,108,250,36),profile.TutorialsEnabled?"Tutoriais: ligados":"Tutoriais: desligados"))
+            {
+                profile.TutorialsEnabled=!profile.TutorialsEnabled;
+                if (!profile.TutorialsEnabled) { tutorialRun=false; tutorialQueue.Clear(); tutorialMessage=""; tutorialTime=0; }
+                SaveProfile(); Notify(profile.TutorialsEnabled?"Tutoriais ativados.":"Tutoriais desativados.");
+            }
+            Box(new Rect(52,195,722,215),PanelColor);
+            Label(new Rect(76,210,650,26),"MAGO ARCANO  /  GRIMÓRIO INICIAL",16,Accent,true);
+            Label(new Rect(76,240,650,23),"Staff de Fogo + grimório escolhido, ambos no nível 1. Seu código permanece.",13,Muted);
+            GrimoireDefinition[] startingGrimoires=MageEquipmentCatalog.StartingGrimoires.ToArray();
+            for (int index=0;index<startingGrimoires.Length;index++)
+                StartingGrimoireCard(new Rect(76+index*170,272,157,84),startingGrimoires[index]);
+            Label(new Rect(76,373,480,30),"POOL: "+string.Join(" · ",unlocked.OrderBy(spell=>spell).Select(spell=>"this."+spell+"()")),12,Muted);
+            bool noGrimoire=string.IsNullOrEmpty(profile.MageStartingGrimoireId);
+            if (Button(new Rect(586,369,157,31),noGrimoire?"Sem grimório ✓":"Sem grimório",noGrimoire)) SelectStartingGrimoire(null);
             Box(new Rect(52,434,722,256),PanelColor);
-            Label(new Rect(75,453,650,26),"O MAGO APRENDE CÓDIGO. O EQUIPAMENTO DEFINE OS ELEMENTOS.",14,Accent,true);
-            Label(new Rect(75,487,650,42),"Equipe um grimório para combinar seu elemento com o da staff.\nNas salas seguras, Q troca a staff e TAB abre o editor.",16);
-            GrimoireButton(new Rect(75,545,170,38),null,"Sem grimório");
-            GrimoireButton(new Rect(258,545,190,38),"grimoire-fire","Grimório de fogo");
-            GrimoireButton(new Rect(461,545,190,38),"grimoire-ice","Grimório de gelo");
+            Label(new Rect(75,453,650,26),"O PERSONAGEM TEM O CÓDIGO. O GRIMÓRIO LIBERA FEITIÇOS.",14,Accent,true);
+            Label(new Rect(75,487,650,42),"Seu programa e rascunho continuam ao trocar equipamentos.\nTAB edita o personagem; I abre a mochila durante a run.",16);
             Label(new Rect(75,599,180,20),"Semente opcional",13,Muted);
             seedText=GUI.TextField(new Rect(75,622,188,34),seedText,11);
-            if (Button(new Rect(285,615,215,43),"Abrir grimório")) OpenEditor(ScreenMode.Hub);
+            if (Button(new Rect(285,615,215,43),"Programar personagem")) OpenEditor(ScreenMode.Hub);
             if (Button(new Rect(520,615,228,43),"Entrar na dungeon →",true)) StartFromHub();
             Box(new Rect(803,195,425,495),PanelColor);
             Label(new Rect(826,215,380,26),"LEGADO PERMANENTE",15,Accent,true);
@@ -107,8 +189,16 @@ namespace ArcaneCode
             UpgradeRow(479,"fire","Onda de chamas","Libera flameWave() na base",profile.FireUnlocked?1:0,true);
             UpgradeRow(551,"ice","Nova congelante","Libera frostNova() na base",profile.IceUnlocked?1:0,true);
             UpgradeRow(623,"speedCast","Conjuração célere","Libera speedCast() para fogo e gelo",profile.SpeedCastUnlocked?1:0,true);
-            Label(new Rect(52,708,1100,25),"PROTÓTIPO 0.1     /     FOGO + GELO     /     UMA DUNGEON, INFINITAS REVISÕES",12,Muted);
+            Label(new Rect(52,708,1100,25),ControllerHintsVisible?"CONTROLE  /  ANALÓGICO OU D-PAD: NAVEGAR  ·  BOTÃO INFERIOR: CONFIRMAR":"PROTÓTIPO 0.1     /     FOGO + GELO     /     UMA DUNGEON, INFINITAS REVISÕES",12,Muted);
             if (Button(new Rect(1090,701,138,35),"Sair")) Application.Quit();
+        }
+        void StartingGrimoireCard(Rect rect,GrimoireDefinition definition)
+        {
+            bool selected=profile.MageStartingGrimoireId==definition.Id;
+            Box(rect,new Color(.045f,.06f,.1f)); Box(new Rect(rect.x,rect.y,rect.width,3),selected?Accent:Muted);
+            string title=RunItemCatalog.TryGet(definition.Id,out RunItemDefinition item)?item.Label.Replace("Grimório da ",""):definition.Label;
+            Label(new Rect(rect.x+8,rect.y+9,rect.width-16,35),title,13,selected?Accent:White,true);
+            if (Button(new Rect(rect.x+8,rect.y+51,rect.width-16,26),selected?"Selecionado ✓":"Escolher",selected)) SelectStartingGrimoire(definition.Id);
         }
         void StaffCard(Rect rect,string id,string label,string description,Color color)
         {
@@ -133,6 +223,11 @@ namespace ArcaneCode
         }
         void HUD()
         {
+            if (!HasCurrentRoom)
+            {
+                HubUI();
+                return;
+            }
             Box(new Rect(22,20,382,98),Background);
             string staffLabel=MageEquipmentCatalog.TryGetStaff(loadout.Staff.DefinitionId,out StaffDefinition staff)?staff.Label:loadout.Staff.DefinitionId;
             Label(new Rect(38,29,350,25),"MAGO ARCANO  /  "+staffLabel.ToUpperInvariant()+" NV. "+loadout.Staff.Level+"  /  NV. "+level,16,Accent,true);
@@ -145,10 +240,15 @@ namespace ArcaneCode
             if (machine!=null && machine.Charging) Bar(new Rect(446,82,350,3),machine.ChargeProgress,Accent);
             MiniMap();
             Box(new Rect(22,693,720,39),Background);
-            Label(new Rect(37,702,690,25),CurrentRoom.Cleared?"SALA SEGURA   /   Q: trocar staff · R: runa ricochete · TAB: grimório":"WASD: mover   /   Ataques automáticos   /   Colete os cristais de experiência",13,Muted);
-            Label(new Rect(22,128,320,24),"◈ "+runCoins+"     TEMPO "+TimeSpan.FromSeconds(elapsed).ToString(@"mm\:ss")+"     XP "+xp+"/"+NextXP,13,White);
+            string controls=ControllerHintsVisible
+                ? CurrentRoom.Cleared?"SALA SEGURA   /   VIEW: mochila · BOTÃO SUPERIOR: programar · MENU: pausar":"ANALÓGICO OU D-PAD: mover   /   Ataques automáticos   /   MENU: pausar"
+                : CurrentRoom.Cleared?"SALA SEGURA   /   I: mochila · E: interagir · TAB: programar personagem":"WASD: mover   /   Ataques automáticos   /   I: mochila · E: interagir";
+            Label(new Rect(37,702,690,25),controls,13,Muted);
+            Label(new Rect(22,128,390,24),"ANDAR "+CurrentRoom.Floor+"/5   ◈ "+runCoins+"     TEMPO "+TimeSpan.FromSeconds(elapsed).ToString(@"mm\:ss")+"     XP "+xp+"/"+NextXP,13,White);
             if (machine!=null && machine.Error!=null)
             { Box(new Rect(260,615,760,62),Background); Label(new Rect(278,624,724,52),"Execução interrompida: "+machine.Error+"\nESC → restaurar ataque básico para continuar.",14,new Color(1,.55f,.5f)); }
+            else if (!string.IsNullOrEmpty(programLoadoutError))
+            { Box(new Rect(260,615,760,62),Background); Label(new Rect(278,624,724,52),"Ataque básico temporário · seu código foi preservado.\nEquipe as magias necessárias ou use TAB em uma sala limpa para editar.",14,new Color(1,.77f,.43f)); }
             Enemy boss=enemies.FirstOrDefault(e=>e.Boss);
             if (boss!=null)
             {
@@ -158,6 +258,7 @@ namespace ArcaneCode
         }
         void MiniMap()
         {
+            if (dungeon == null || dungeon.Rooms == null || dungeon.Rooms.Count == 0) return;
             Box(new Rect(1020,20,238,192),Background); Label(new Rect(1036,31,200,24),"CATACUMBAS / "+seed,11,Muted);
             int minX=dungeon.Rooms.Min(r=>r.X),maxX=dungeon.Rooms.Max(r=>r.X),minY=dungeon.Rooms.Min(r=>r.Y),maxY=dungeon.Rooms.Max(r=>r.Y);
             float size=Mathf.Min(28,Mathf.Min(195f/(maxX-minX+1),134f/(maxY-minY+1)));
@@ -174,7 +275,7 @@ namespace ArcaneCode
                 }
                 Color color=i==roomIndex?Accent:room.Cleared&&room.Visited?new Color(.33f,.52f,.56f):new Color(.23f,.28f,.39f);
                 Box(new Rect(x,y,size*.8f,size*.8f),color);
-                string symbol=room.Kind==RoomKind.Boss?"B":room.Kind==RoomKind.Reward?"+":room.Kind==RoomKind.Rest?"♡":"";
+                string symbol=room.Kind==RoomKind.Boss?"B":room.Kind==RoomKind.Shop?"$":room.Kind==RoomKind.Rest?"♡":room.Kind==RoomKind.Treasure?"▣":"";
                 Label(new Rect(x+3,y-1,size,size),symbol,11,White,true);
             }
         }
@@ -192,9 +293,161 @@ namespace ArcaneCode
                 if (Button(new Rect(x+24,516,328,48),"Escolher melhoria",true)) { ChooseReward(reward); break; }
             }
             Label(new Rect(52,633,1100,35),"A sintaxe inteira está disponível desde o início. Você decide como combinar as funções.",16,Muted);
+            ControllerHint(new Rect(52,680,720,32),"ANALÓGICO OU D-PAD: navegar  ·  BOTÃO INFERIOR: escolher");
+        }
+        void ShopUI()
+        {
+            Box(new Rect(0,0,1280,800),new Color(.02f,.025f,.05f,.91f));
+            Header("LOJA ARCANA  /  MOEDAS DA TENTATIVA: "+runCoins,"MERCADOR DAS CATACUMBAS","Compre melhorias temporárias para esta tentativa. Itens comprados não voltam na próxima run.");
+            for (int i=0;i<shopItems.Count;i++)
+            {
+                float x=52+i*397; ShopItem item=shopItems[i]; Reward reward=item.Reward;
+                Box(new Rect(x,242,376,346),PanelColor); Box(new Rect(x,242,376,3),item.Sold?Muted:Accent);
+                Label(new Rect(x+24,273,326,26),"0"+(i+1)+"  /  "+reward.Tag,13,Accent,true);
+                Label(new Rect(x+24,326,326,64),reward.Title,27,White,true);
+                Label(new Rect(x+24,405,326,90),reward.Description,18,Muted);
+                string label=item.Sold?"Esgotado":item.Price+" ◈";
+                if (Button(new Rect(x+24,516,328,48),label,true,!item.Sold&&runCoins>=item.Price)) { BuyShopItem(item); break; }
+            }
+            if (Button(new Rect(52,623,280,43),"Sair da loja")) mode=ScreenMode.Run;
+            Label(new Rect(350,632,760,25),"Moedas só entram no saldo quando você as coleta no chão.",14,Muted);
+            ControllerHint(new Rect(52,690,720,32),"ANALÓGICO OU D-PAD: navegar  ·  BOTÃO INFERIOR: comprar  ·  BOTÃO DIREITO: sair");
+        }
+        Color ItemColor(RunItemDefinition definition)
+        {
+            if (definition.OwnerClassId == "goblin") return new Color(1,.72f,.24f);
+            return definition.Kind == RunItemKind.Ring ? new Color(.7f,.38f,1) : new Color(.86f,.39f,1);
+        }
+        void InventoryUI()
+        {
+            Box(new Rect(0,0,1280,800),new Color(.015f,.02f,.04f,.9f));
+            Header("MOCHILA  /  AÇÃO CONTINUA EM TEMPO REAL","INVENTÁRIO DA TENTATIVA","Clique em staffs e grimórios para equipar. Passe o cursor para ler; segure Shift para ver os níveis.");
+            Box(new Rect(52,205,305,478),PanelColor);
+            MagePortrait(new Rect(76,237,140,140));
+            if (Button(new Rect(232,237,92,38),"⌕ Status")) inventoryStatsOpen=!inventoryStatsOpen;
+            Label(new Rect(76,402,240,24),"NÍVEL "+level+"  ·  VIDA "+Mathf.CeilToInt(hp)+"/"+Mathf.CeilToInt(MaxHealth),14,Muted);
+            Label(new Rect(76,434,240,24),"STAFF",13,Muted,true);
+            InventorySlot(new Rect(76,462,240,78),inventory.EquippedStaff,"Nenhuma staff equipada");
+            Label(new Rect(76,557,240,24),"GRIMÓRIO",13,Muted,true);
+            InventorySlot(new Rect(76,585,240,78),inventory.EquippedGrimoire,"Sem grimório equipado");
+            Box(new Rect(382,205,846,478),PanelColor); Label(new Rect(408,227,780,24),"MOCHILA  /  "+inventory.Items.Count+" ITENS",14,Accent,true);
+            for (int index=0;index<inventory.Items.Count;index++)
+            {
+                RunItemInstance item=inventory.Items[index];
+                if (!RunItemCatalog.TryGet(item.DefinitionId,out RunItemDefinition definition)) continue;
+                float x=408+(index%4)*195,y=270+(index/4)*128;
+                InventoryCard(new Rect(x,y,174,108),item,definition);
+            }
+            if (inventoryStatsOpen) InventoryStats();
+            if (Button(new Rect(52,710,235,43),"Fechar  /  I")) mode=ScreenMode.Run;
+            Label(new Rect(312,720,860,25),"E / BOTÃO INFERIOR: abrir baús e guardar itens   ·   I / VIEW: mochila",13,Muted);
+        }
+        void MagePortrait(Rect rect)
+        {
+            Box(rect,new Color(.17f,.12f,.27f));
+            Sprite sprite=MageSprites.Facing(Vector2.down);
+            if (sprite == null) { Label(new Rect(rect.x,rect.y+48,rect.width,35),"MAGO",24,White,true); return; }
+            Rect source=sprite.rect;
+            Rect texCoords=new Rect(source.x/sprite.texture.width,source.y/sprite.texture.height,source.width/sprite.texture.width,source.height/sprite.texture.height);
+            GUI.DrawTextureWithTexCoords(rect,sprite.texture,texCoords,true);
+        }
+        void InventorySlot(Rect rect,RunItemInstance item,string empty)
+        {
+            Box(rect,new Color(.05f,.07f,.12f));
+            if (item == null) { Label(new Rect(rect.x+12,rect.y+25,rect.width-24,24),empty,13,Muted); return; }
+            if (!RunItemCatalog.TryGet(item.DefinitionId,out RunItemDefinition definition)) return;
+            Box(new Rect(rect.x,rect.y,4,rect.height),ItemColor(definition));
+            Label(new Rect(rect.x+14,rect.y+12,rect.width-22,25),definition.Label,14,White,true);
+            Label(new Rect(rect.x+14,rect.y+42,rect.width-22,21),"NÍVEL "+item.Level+"/"+definition.MaxLevel,12,ItemColor(definition));
+        }
+        void InventoryCard(Rect rect,RunItemInstance item,RunItemDefinition definition)
+        {
+            bool equipped=item.InstanceId==inventory.EquippedStaffId || item.InstanceId==inventory.EquippedGrimoireId;
+            Color color=ItemColor(definition); Box(rect,new Color(.06f,.08f,.14f)); Box(new Rect(rect.x,rect.y,rect.width,3),equipped?color:new Color(.2f,.25f,.34f));
+            Label(new Rect(rect.x+12,rect.y+15,rect.width-24,42),definition.Label,14,color,true);
+            Label(new Rect(rect.x+12,rect.y+64,rect.width-24,20),"NÍVEL "+item.Level+"/"+definition.MaxLevel,12,White);
+            bool canEquip=definition.Kind==RunItemKind.Staff || definition.Kind==RunItemKind.Grimoire;
+            if (Button(new Rect(rect.x+12,rect.y+84,rect.width-24,19),canEquip?(equipped?"Equipado":"Equipar"):"Detalhes",false))
+            { if (canEquip) EquipInventoryItem(item); else selectedInventoryItemId=item.InstanceId; }
+            bool hover=rect.Contains(Event.current.mousePosition);
+            if (hover || selectedInventoryItemId==item.InstanceId) ItemPreview(new Rect(rect.x,rect.y+111,rect.width,85),item,definition);
+        }
+        void ItemPreview(Rect rect,RunItemInstance item,RunItemDefinition definition)
+        {
+            Box(rect,new Color(.02f,.025f,.05f,.98f));
+            string effect=ItemEffect(definition,item.Level);
+            if (Event.current.shift && definition.Kind != RunItemKind.Grimoire)
+            {
+                string levels="";
+                for (int level=1;level<=definition.MaxLevel;level++) levels+=(level<=item.Level?ItemEffect(definition,level):"[ "+ItemEffect(definition,level)+" ]")+(level==definition.MaxLevel?"":"  ");
+                effect="Por nível: "+levels;
+            }
+            Label(new Rect(rect.x+8,rect.y+7,rect.width-16,rect.height-12),effect,12,ItemColor(definition));
+        }
+        string ItemEffect(RunItemDefinition definition,int level)
+        {
+            if (definition.Kind==RunItemKind.Ring) return "+"+level+" ricochete"+(level==1?"":"s");
+            if (definition.Kind==RunItemKind.Staff) return "+"+Mathf.RoundToInt((level-1)*12)+"% poder elemental";
+            return MageEquipmentCatalog.TryGetGrimoire(definition.Id,out GrimoireDefinition grimoire)?"Libera this."+grimoire.BaseSpellId+"() para o mago.\nNão altera seu programa.":definition.Description;
+        }
+        void InventoryStats()
+        {
+            Rect rect=new Rect(247,208,360,235); Box(rect,new Color(.025f,.035f,.065f,.99f));
+            Label(new Rect(267,225,320,25),"STATUS DO MAGO",16,Accent,true);
+            Label(new Rect(267,262,320,138),"Nível "+level+"\nVida "+Mathf.CeilToInt(hp)+" / "+Mathf.CeilToInt(MaxHealth)+"\nEnergia "+energy+" / "+MaxEnergy+"\nMemória "+Budget+"\nVelocidade +"+Mathf.RoundToInt(speedBonus*100)+"%\nPoder +"+Mathf.RoundToInt(damageBonus*100)+"%\nRicochetes "+inventory.RicochetCount,14,White);
+        }
+        void SaveProgramUI()
+        {
+            Box(new Rect(0,0,1280,800),new Color(.015f,.02f,.04f,.94f));
+            Header("FIM DA TENTATIVA","GUARDAR UMA CÓPIA DO PROGRAMA?","O código já está salvo no personagem. Você também pode nomear uma cópia na Biblioteca.");
+            Box(new Rect(350,255,580,255),PanelColor);
+            Label(new Rect(385,285,510,28),"Programa do Mago Arcanista",18,Accent,true);
+            Label(new Rect(385,328,510,22),"Nome para a Biblioteca",13,Muted);
+            programSaveName=GUI.TextField(new Rect(385,357,510,38),programSaveName,48);
+            if (Button(new Rect(385,425,246,47),"Guardar cópia",true)) SaveCharacterProgram();
+            if (Button(new Rect(649,425,246,47),"Continuar",false)) SkipSaveProgram();
         }
         void ValidateDraft()
         { draftResult=SpellCompiler.Compile(draft,Options()); highlightedSource=""; }
+        DraftEdit CaptureDraft()
+        { return new DraftEdit { Text=draft,Cursor=Mathf.Clamp(caret,0,draft.Length),Selection=Mathf.Clamp(selectionCaret,0,draft.Length) }; }
+        void PushDraftEdit(List<DraftEdit> history,DraftEdit edit)
+        {
+            if (history.Count==DraftHistoryLimit) history.RemoveAt(0);
+            history.Add(edit);
+        }
+        void ResetDraftHistory()
+        {
+            draftUndo.Clear(); draftRedo.Clear(); caret=selectionCaret=0;
+            completionVisible=false; focusCode=true;
+        }
+        void ChangeDraft(string text,int cursor,int selection)
+        {
+            if (text==draft) return;
+            PushDraftEdit(draftUndo,CaptureDraft()); draftRedo.Clear();
+            draft=text; caret=Mathf.Clamp(cursor,0,draft.Length); selectionCaret=Mathf.Clamp(selection,0,draft.Length);
+            completionVisible=false; focusCode=true; ValidateDraft();
+        }
+        void RestoreDraftEdit(List<DraftEdit> from,List<DraftEdit> to)
+        {
+            if (from.Count==0) return;
+            PushDraftEdit(to,CaptureDraft());
+            DraftEdit edit=from[from.Count-1]; from.RemoveAt(from.Count-1);
+            draft=edit.Text; caret=edit.Cursor; selectionCaret=edit.Selection;
+            completionVisible=false; focusCode=true; ValidateDraft();
+            editorMessage="Rascunho alterado. Aplique o programa para usar as mudanças.";
+        }
+        bool HandleDraftHistoryShortcut(Event input)
+        {
+            if (!(input.control || input.command) || input.alt) return false;
+            if (input.keyCode==KeyCode.Z)
+            {
+                if (input.shift) RestoreDraftEdit(draftRedo,draftUndo); else RestoreDraftEdit(draftUndo,draftRedo);
+                return true;
+            }
+            if (input.keyCode==KeyCode.Y) { RestoreDraftEdit(draftRedo,draftUndo); return true; }
+            return false;
+        }
         string Highlight(string code)
         {
             return Regex.Replace(code,@"//[^\n]*|\b(?:class|extends|void|int|float|bool|var|if|else|for|return|this|true|false)\b|\b(?:Fireball|Icebolt|FlameWave|FrostNova|MagoArcanista|Mago)\b|\b\d+(?:\.\d+)?\b",m=>
@@ -206,13 +459,15 @@ namespace ArcaneCode
         }
         void InsertCode(string snippet)
         {
-            caret=Mathf.Clamp(caret,0,draft.Length); draft=draft.Insert(caret,snippet); caret+=snippet.Length; ValidateDraft(); focusCode=true;
+            int position=Mathf.Clamp(caret,0,draft.Length);
+            ChangeDraft(draft.Insert(position,snippet),position+snippet.Length,position+snippet.Length);
         }
         void EditorUI()
         {
             Box(new Rect(0,0,1280,800),Background);
-            Label(new Rect(30,22,850,24),"GRIMÓRIO  /  MAGO ARCANO  /  "+(dungeon==null?"CÓDIGO INICIAL":"TENTATIVA ATUAL"),14,Accent,true);
+            Label(new Rect(30,22,850,24),"PROGRAMA DO PERSONAGEM  /  MAGO ARCANO  /  "+(dungeon==null?"SANTUÁRIO":"TENTATIVA ATUAL"),14,Accent,true);
             Label(new Rect(28,57,820,46),"Magia é uma questão de lógica.",31,White,true);
+            ControllerHint(new Rect(28,91,840,22),"CONTROLE: navega ações e exemplos. Para escrever código, use teclado ou mouse.");
             if (Button(new Rect(1030,34,217,42),"Voltar ao "+(dungeon==null?"santuário":"jogo"))) CloseEditor();
             Box(new Rect(28,117,840,516),new Color(.025f,.035f,.057f));
             Box(new Rect(28,117,840,35),PanelColor);
@@ -227,35 +482,44 @@ namespace ArcaneCode
             for (int i=0;i<lines.Length;i++) Label(new Rect(5,4+i*lineHeight,40,lineHeight),(i+1).ToString(),13,Muted);
             Rect codeRect=new Rect(48,0,contentWidth-55,contentHeight);
             HandleEditorKeys();
+            if (!focusCode && GUI.GetNameOfFocusedControl()=="SpellCode")
+            {
+                var before=(TextEditor)GUIUtility.GetStateObject(typeof(TextEditor),GUIUtility.keyboardControl);
+                caret=before.cursorIndex; selectionCaret=before.selectIndex;
+            }
             // Transparent input draws selection/caret; highlighted text is rendered on top at identical metrics.
             GUI.SetNextControlName("SpellCode");
             // Give the field focus before it handles this GUI event. Doing it afterwards lost
             // keyboard focus after Enter on some Unity IMGUI passes.
             if (focusCode) GUI.FocusControl("SpellCode");
             string edited=GUI.TextArea(codeRect,draft,12000,codeInputStyle);
-            if (edited!=draft) { draft=edited; ValidateDraft(); }
+            if (edited!=draft)
+            {
+                var after=(TextEditor)GUIUtility.GetStateObject(typeof(TextEditor),GUIUtility.keyboardControl);
+                ChangeDraft(edited,after.cursorIndex,after.selectIndex); focusCode=false;
+            }
             if (highlightedSource!=draft) { highlighted=Highlight(draft); highlightedSource=draft; }
             GUI.Label(codeRect,highlighted,codeStyle);
             if (GUI.GetNameOfFocusedControl()=="SpellCode")
             {
                 var editor=(TextEditor)GUIUtility.GetStateObject(typeof(TextEditor),GUIUtility.keyboardControl);
-                if (!focusCode) caret=editor.cursorIndex;
+                if (!focusCode) { caret=editor.cursorIndex; selectionCaret=editor.selectIndex; }
             }
             RefreshCompletions();
             CompletionPopup(lineHeight,contentWidth);
-            if (focusCode)
+            if (focusCode && GUI.GetNameOfFocusedControl()=="SpellCode")
             {
                 var editor=(TextEditor)GUIUtility.GetStateObject(typeof(TextEditor),GUIUtility.keyboardControl);
-                editor.cursorIndex=editor.selectIndex=caret; focusCode=false;
+                editor.text=draft; editor.cursorIndex=caret; editor.selectIndex=selectionCaret; focusCode=false;
             }
             GUI.EndScrollView();
             Box(new Rect(28,646,840,81),PanelColor);
             string message=draftResult!=null&&!draftResult.Success?draftResult.Error.ToString():editorMessage;
             Label(new Rect(43,658,810,57),message,14,draftResult!=null&&!draftResult.Success?new Color(1,.6f,.55f):Muted);
             if (Button(new Rect(28,744,233,39),"Aplicar programa",true,draftResult!=null&&draftResult.Success)) ApplyDraft();
-            if (Button(new Rect(276,744,185,39),"Código ativo")) { draft=source; ValidateDraft(); }
-            if (Button(new Rect(476,744,184,39),"Ataque básico")) { draft=SpellCompiler.Starter(MageClassName,PrimarySpellId); ValidateDraft(); }
-            if (Button(new Rect(675,744,193,39),"Exemplo: carga")) { draft=SpellCompiler.Charged(MageClassName,PrimarySpellId); ValidateDraft(); }
+            if (Button(new Rect(276,744,185,39),"Código do personagem")) ChangeDraft(source,0,0);
+            if (Button(new Rect(476,744,184,39),"Ataque básico")) ChangeDraft(SpellCompiler.Starter(MageClassName,PrimarySpellId),0,0);
+            if (Button(new Rect(675,744,193,39),"Exemplo: carga")) ChangeDraft(SpellCompiler.Charged(MageClassName,PrimarySpellId),0,0);
             DocumentationUI();
         }
         void CompleteAtCaret()
@@ -298,15 +562,19 @@ namespace ArcaneCode
         {
             if (!completionVisible || completions.Count==0) return;
             int start=CompletionStart(); Completion completion=completions[completionIndex];
-            draft=draft.Remove(start,caret-start).Insert(start,completion.Insert);
-            caret=start+completion.Insert.Length; completionVisible=false; focusCode=true; ValidateDraft();
+            ChangeDraft(draft.Remove(start,caret-start).Insert(start,completion.Insert),start+completion.Insert.Length,start+completion.Insert.Length);
             editorMessage="Inserido: this."+completion.Label;
         }
         void HandleEditorKeys()
         {
             if (GUI.GetNameOfFocusedControl()!="SpellCode" || Event.current.type!=EventType.KeyDown) return;
             var editor=(TextEditor)GUIUtility.GetStateObject(typeof(TextEditor),GUIUtility.keyboardControl);
-            caret=editor.cursorIndex;
+            caret=editor.cursorIndex; selectionCaret=editor.selectIndex;
+            if (HandleDraftHistoryShortcut(Event.current))
+            {
+                editor.text=draft; editor.cursorIndex=caret; editor.selectIndex=selectionCaret;
+                Event.current.Use(); return;
+            }
             if (Event.current.control && Event.current.keyCode==KeyCode.Space) { CompleteAtCaret(); Event.current.Use(); return; }
             if (Event.current.keyCode==KeyCode.Tab)
             {
@@ -328,13 +596,12 @@ namespace ArcaneCode
             // Do not trust TextEditor.selectIndex here: it can temporarily point to zero
             // when IMGUI restores focus, which made Tab appear to select/indent the whole file.
             int position=Mathf.Clamp(caret,0,draft.Length);
-            if (!outdent) { draft=draft.Insert(position,"    "); caret=position+4; focusCode=true; ValidateDraft(); return; }
+            if (!outdent) { ChangeDraft(draft.Insert(position,"    "),position+4,position+4); return; }
             int line=draft.LastIndexOf('\n',Mathf.Max(0,position-1))+1;
             int amount=0;
             if (line<draft.Length && draft[line]=='\t') amount=1;
             else while (amount<4 && line+amount<draft.Length && draft[line+amount]==' ') amount++;
-            if (amount>0 && position>=line+amount) { draft=draft.Remove(line,amount); caret=position-amount; }
-            focusCode=true; ValidateDraft();
+            if (amount>0 && position>=line+amount) ChangeDraft(draft.Remove(line,amount),position-amount,position-amount);
         }
         void InsertIndentedNewline()
         {
@@ -343,7 +610,7 @@ namespace ArcaneCode
             int indentEnd=line; while (indentEnd<draft.Length&&(draft[indentEnd]==' '||draft[indentEnd]=='\t')) indentEnd++;
             string indent=draft.Substring(line,indentEnd-line);
             if (draft.Substring(line,cursor-line).TrimEnd().EndsWith("{")) indent+="    ";
-            draft=draft.Insert(cursor,"\n"+indent); caret=cursor+1+indent.Length; focusCode=true; ValidateDraft();
+            ChangeDraft(draft.Insert(cursor,"\n"+indent),cursor+1+indent.Length,cursor+1+indent.Length);
         }
         void CompletionPopup(float lineHeight,float contentWidth)
         {
@@ -365,8 +632,8 @@ namespace ArcaneCode
             Box(new Rect(889,117,359,666),PanelColor);
             Label(new Rect(908,133,320,25),"KERNEL / REFERÊNCIA",14,Accent,true);
             docsScroll=GUI.BeginScrollView(new Rect(904,177,331,590),docsScroll,new Rect(0,0,307,1190));
-            Label(new Rect(0,0,302,62),"Digite this. para ver sugestões.\nTAB aceita/indenta; Shift+TAB remove.\nEnter preserva a indentação.",14,Muted);
-            float y=82;
+            Label(new Rect(0,0,302,102),"Digite this. para ver sugestões.\nTAB aceita/indenta; Shift+TAB remove.\nEnter preserva a indentação.\nCtrl+Z desfaz.\nCtrl+Shift+Z / Ctrl+Y refaz.",14,Muted);
+            float y=122;
             foreach (string spell in unlocked.OrderBy(s=>s))
             {
                 string type=SpellCompiler.SpellTypes[spell];
@@ -400,9 +667,10 @@ namespace ArcaneCode
             Label(new Rect(430,237,430,60),"Execução pausada.",30,White,true);
             if (Button(new Rect(430,317,420,49),"Continuar",true)) mode=ScreenMode.Run;
             if (Button(new Rect(430,384,420,49),"Restaurar ataque básico"))
-            { source=SpellCompiler.Starter(MageClassName,PrimarySpellId); applied=SpellCompiler.Compile(source,Options()).Program; machine=CreateMachine(); mode=ScreenMode.Run; Notify("Ataque básico restaurado; rascunho preservado."); }
+                RestoreBasicAttack();
             if (Button(new Rect(430,452,420,49),"Encerrar tentativa e voltar à base")) FinishRun(false);
             Label(new Rect(430,526,420,47),"Os fragmentos coletados serão depositados.\nNíveis e melhorias da tentativa serão reiniciados.",14,Muted);
+            ControllerHint(new Rect(430,570,420,25),"BOTÃO INFERIOR: confirmar  ·  BOTÃO DIREITO ou MENU: continuar");
         }
         void ResultUI()
         {
@@ -418,6 +686,7 @@ namespace ArcaneCode
             Label(new Rect(52,491,1100,65),"Invista seus fragmentos na base para ampliar vida, energia e complexidade,\nou desbloqueie uma nova magia para suas próximas tentativas.",20,Muted);
             if (Button(new Rect(52,595,367,58),"Voltar ao santuário →",true)) PrepareHub();
             if (saveDirty && Button(new Rect(443,595,310,58),"Tentar salvar novamente")) SaveProfile();
+            ControllerHint(new Rect(52,675,500,30),"BOTÃO INFERIOR ou DIREITO: voltar ao santuário");
         }
     }
 }

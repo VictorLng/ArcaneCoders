@@ -9,7 +9,7 @@ namespace ArcaneCode.Editor
     {
         void OnPreprocessTexture()
         {
-            if (assetPath != "Assets/Resources/Characters/Mage/mage-directions.png") return;
+            if (assetPath != "Assets/Resources/Characters/Mage/mage-directions.png" && assetPath != "Assets/Resources/Characters/Mage/mage-attack.png" && !assetPath.StartsWith("Assets/Resources/Characters/Mage/Animations/")) return;
             var importer = (TextureImporter)assetImporter;
             importer.textureType = TextureImporterType.Default;
             importer.alphaSource = TextureImporterAlphaSource.FromInput;
@@ -19,13 +19,33 @@ namespace ArcaneCode.Editor
             importer.npotScale = TextureImporterNPOTScale.None;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.maxTextureSize = 2048;
+            importer.isReadable = assetPath.StartsWith("Assets/Resources/Characters/Mage/Animations/mage-attack-");
         }
     }
 
     public static class MageArtImport
     {
         const string Output = "Assets/Resources/Characters/Mage/mage-directions.png";
+        const string AnimationDirectory = "Assets/Resources/Characters/Mage/Animations";
         static bool Background(Color32 p) => p.g > 100 && p.g > p.r * 1.35f && p.g > p.b * 1.35f;
+
+        [InitializeOnLoadMethod]
+        static void EnsureAttackSheetsAreReadable()
+        {
+            EditorApplication.delayCall += () =>
+            {
+                string directory = Path.Combine(Application.dataPath, "Resources", "Characters", "Mage", "Animations");
+                if (!Directory.Exists(directory)) return;
+                foreach (string file in Directory.GetFiles(directory, "mage-attack-*.png"))
+                {
+                    string assetPath = AnimationDirectory + "/" + Path.GetFileName(file);
+                    var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+                    if (importer == null || importer.isReadable) continue;
+                    importer.isReadable = true;
+                    importer.SaveAndReimport();
+                }
+            };
+        }
 
         [MenuItem("Arcane Code/Arte/Preparar poses do mago")]
         public static void Prepare()

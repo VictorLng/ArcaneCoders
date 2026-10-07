@@ -7,20 +7,62 @@ namespace ArcaneCode
 {
     public sealed class ActorArt : MonoBehaviour
     {
+        const int WalkFrameCount = 10;
+        const int AttackFrameCount = 24;
+        const float AnimationCycleSeconds = 1f;
         public SpriteRenderer Shadow { get; private set; }
         public SpriteRenderer Body { get; private set; }
         public bool Directional { get; private set; }
-        public void Initialize(SpriteRenderer shadow, SpriteRenderer body) { Shadow = shadow; Body = body; }
-        public void EnableDirections()
+        public bool Casting => attacking != null && Time.time < attackUntil;
+        Func<Vector2,Sprite> facing, attacking;
+        Vector2 lastDirection = Vector2.down;
+        float attackUntil, attackStarted, turnStarted = -1;
+        Vector3 baseScale;
+        public void Initialize(SpriteRenderer shadow, SpriteRenderer body) { Shadow = shadow; Body = body; baseScale = body.transform.localScale; }
+        public void EnableDirections(Func<Vector2,Sprite> resolveFacing, Func<Vector2,Sprite> resolveAttack = null)
         {
-            Sprite pose = MageSprites.Facing(Vector2.down);
+            Sprite pose = resolveFacing(Vector2.down);
             if (pose == null) return;
-            Directional = true; Body.sprite = pose; Body.color = Color.white;
+            facing=resolveFacing; attacking=resolveAttack; Directional = true; Body.sprite = pose; Body.color = Color.white;
             Body.transform.localPosition = Vector3.zero;
         }
         public void Face(Vector2 direction)
         {
-            if (Directional && direction.sqrMagnitude > .001f) Body.sprite = MageSprites.Facing(direction);
+            if (!Directional || direction.sqrMagnitude <= .001f) return;
+            if (Vector2.Dot(lastDirection.normalized,direction.normalized) < .98f) turnStarted = Time.time;
+            lastDirection = direction;
+            if (Time.time >= attackUntil) Body.sprite = facing(direction);
+        }
+        public void Cast(Vector2 direction)
+        {
+            if (attacking == null) return;
+            if (direction.sqrMagnitude > .001f) lastDirection = direction;
+            Sprite pose = MageSprites.AttackFrame(lastDirection, 0) ?? attacking(lastDirection);
+            if (pose == null) return;
+            Body.sprite = pose; attackStarted = Time.time; attackUntil = attackStarted + AnimationCycleSeconds;
+        }
+        public void Animate(float phase, bool moving)
+        {
+            if (attacking == null) return;
+            if (Time.time < attackUntil)
+            {
+                int frame = Mathf.Min(AttackFrameCount - 1, Mathf.FloorToInt((Time.time - attackStarted) * AttackFrameCount / AnimationCycleSeconds));
+                Body.sprite = MageSprites.AttackFrame(lastDirection, frame) ?? attacking(lastDirection);
+            }
+            else if (moving)
+            {
+                int frame = Mathf.FloorToInt(Time.time * WalkFrameCount / AnimationCycleSeconds) % WalkFrameCount;
+                Body.sprite = MageSprites.Walking(lastDirection, frame) ?? facing(lastDirection);
+            }
+            else Body.sprite = facing(lastDirection);
+            float bob = moving ? Mathf.Sin(phase) * .045f : Mathf.Sin(phase * .4f) * .014f;
+            float sway = moving ? Mathf.Sin(phase * .5f) * .008f : 0;
+            float tilt = Time.time < attackUntil ? 0 : moving ? Mathf.Sin(phase) * 1.2f : 0;
+            float turnProgress = turnStarted < 0 ? 3 : (Time.time - turnStarted) * 24f;
+            float turnScale = turnProgress < 3 ? new[] { .96f, 1.03f, 1f }[Mathf.Clamp(Mathf.FloorToInt(turnProgress), 0, 2)] : 1f;
+            Body.transform.localPosition = new Vector3(sway, bob, 0);
+            Body.transform.localRotation = Quaternion.Euler(0, 0, tilt);
+            Body.transform.localScale = baseScale * turnScale;
         }
     }
 
@@ -98,20 +140,21 @@ namespace ArcaneCode
             }
             return renderer;
         }
-        public static ActorArt Actor(Transform parent, string shape, Vector2 position, Color color, float size)
+        public static ActorArt Actor(Transform parent, string shape, Vector2 position, Color color, float size, Func<Vector2,Sprite> resolveFacing = null)
         {
             var root = new GameObject(shape).transform; root.SetParent(parent); root.position = position;
             SpriteRenderer shadow=Draw(root,"disc",Vector2.zero,new Vector2(size*.68f,size*.22f),new Color(0,0,0,.4f),1,false);
             SpriteRenderer body=Draw(root,shape,new Vector2(0,size*.34f),Vector2.one*size,color,2);
             var art=root.gameObject.AddComponent<ActorArt>(); art.Initialize(shadow,body);
-            if (shape == "mage") art.EnableDirections();
+            if (shape == "mage") art.EnableDirections(MageSprites.Facing,MageSprites.Attacking);
+            else if (resolveFacing != null) art.EnableDirections(resolveFacing);
             return art;
         }
         public static void Sort(ActorArt actor, float phase, bool moving)
         {
             int order = 100 - Mathf.RoundToInt(actor.transform.position.y * 15);
             actor.Shadow.sortingOrder=order; actor.Body.sortingOrder=order+1;
-            if (actor.Directional) return;
+            if (actor.Directional) { actor.Animate(phase,moving); return; }
             Transform body=actor.Body.transform;
             Vector3 p=body.localPosition; p.y=body.localScale.y*.34f+(moving?Mathf.Sin(phase)*.045f:Mathf.Sin(phase*.4f)*.014f); body.localPosition=p;
         }

@@ -1,6 +1,6 @@
 # ArcaneCoders
 
-Protótipo Unity 2D de um roguelite com feitiços programáveis. Você controla o movimento de um mago; uma pseudolinguagem tipada controla os ataques automáticos.
+Protótipo Unity 2.5D de um roguelite com personagens programáveis. Você controla o movimento de um mago; uma pseudolinguagem tipada controla os ataques automáticos. O programa pertence ao personagem, separado dos equipamentos.
 
 ## Jogar
 
@@ -8,25 +8,29 @@ Unity **6000.6.0f1**, Universal Render Pipeline 2D.
 
 1. No Unity Hub, adicione esta pasta (`ArcaneCoders`).
 2. Abra `Assets/Scenes/ArcaneCode.unity` e pressione **Play**.
-3. Equipe uma staff e, opcionalmente, um grimório; o Mago Arcano já começa com um programa funcional.
+3. No santuário, escolha o grimório inicial do Mago Arcano: Bola de Fogo, Lança de Gelo, Onda de Chamas ou Nova Congelante. A staff e o grimório começam no nível 1. A última escolha fica salva; também é possível entrar sem grimório. Escolher um grimório amplia a pool de feitiços sem substituir o código do personagem.
 
 Os executáveis ficam em `Builds/Linux/ArcaneCode.x86_64` e `Builds/Windows/ArcaneCode.exe`. Mantenha o executável junto das pastas e bibliotecas do respectivo build.
 
 | Controle | Ação |
 | --- | --- |
 | WASD / setas | Movimentar o mago |
-| TAB / E | Editar feitiços em uma sala limpa |
-| Q | Alternar staff de fogo/gelo em uma sala limpa |
-| R | Alternar a Runa de Ricochete, nível 1–3, em uma sala limpa |
+| TAB | Editar o programa do personagem em uma sala limpa |
+| I | Abrir/fechar a mochila; staffs e grimórios podem ser equipados nela |
+| E | Interagir com baús, itens no chão e ofertas da loja |
 | ESC | Pausar, retomar ou encerrar a tentativa |
 | Ctrl + espaço | Completar nomes no editor de código |
+| Ctrl + Z | Desfazer uma edição na IDE interna |
+| Ctrl + Shift + Z / Ctrl + Y | Refazer uma edição na IDE interna |
 | F12 | Capturar a tela em `capture.png`, na pasta do perfil |
 
-A mira e os disparos são automáticos. Encoste nos cristais verdes para ganhar experiência; eles se aproximam do mago. Cristais não coletados permanecem na sala mesmo depois de atravessar uma porta. O minimapa indica chefe (`B`), recompensa (`+`) e descanso (`♡`).
+A mira e os disparos são automáticos. Cristais de XP e moedas podem ser coletados durante o combate; os restantes são absorvidos ao limpar a sala. Itens exigem interação. O minimapa indica chefe (`B`), loja (`$`), baú (`▣`) e descanso (`♡`).
+
+Baús, projéteis, ondas mágicas, moedas e itens usam modelos 3D simples no cenário 2D. Anéis, cajados, grimórios e cartas da loja giram e flutuam sobre sombras fixas no chão. A animação não desloca os pontos de interação nem altera as colisões, o alcance dos ataques ou os preços.
 
 Ao subir de nível, escolha uma de três melhorias e edite seu programa se quiser. O botão **Aplicar programa** ativa apenas código válido. **Voltar ao jogo** preserva o último programa aplicado, mesmo que exista um rascunho inválido.
 
-Se um programa válido não atacar, ou ocorrer erro durante sua execução, use **ESC → Restaurar ataque básico**. O rascunho continua disponível no grimório.
+Se um programa válido não atacar, ou ocorrer erro durante sua execução, use **ESC → Restaurar ataque básico**. O rascunho continua disponível no editor do personagem.
 
 ## Feitiços
 
@@ -64,10 +68,11 @@ Energia persiste entre chamadas na mesma sala e reinicia ao trocar de sala. O jo
 O personagem é sempre `MagoArcanista`; o equipamento define quais feitiços o código pode usar.
 
 - A **staff** fornece o elemento principal, até dois sockets de runa e `+12%` de dano do seu elemento por nível acima do 1.
-- O **grimório** é opcional: ele adiciona seu próprio elemento ao grimório e concede `+8%` de dano por nível acima do 1 para as magias daquele elemento.
+- O **grimório** é opcional e exclusivo do mago: ele adiciona seus feitiços à pool disponível. Não guarda código nem concede bônus de dano; seu nível continua registrado como nível do item.
+- O **grimório inicial** é escolhido no santuário, antes da run. Equipar outro grimório encontrado na dungeon não altera essa preferência; cada nova run recebe uma instância nova do escolhido no nível 1.
 - Staff de gelo + Grimório de fogo, por exemplo, liberam `icebolt()` e `fireball()` no mesmo programa.
 - A **Runa de Ricochete** faz projéteis acertarem o alvo mais próximo visível após um impacto. Cada nível concede um ricochete adicional, até três.
-- Trocas são restritas a salas limpas para que recompilar o programa e alterar magias disponíveis não interrompa combate ativo.
+- Trocar equipamento preserva o programa e o rascunho do personagem. Se faltar uma magia ou orçamento para executar o código, o jogo avisa e usa um ataque básico temporário. O programa original volta a executar quando suas dependências estão disponíveis novamente.
 
 As definições e instâncias ficam em `Assets/ArcaneCode/Core/MageEquipment.cs`. Fogo e gelo são o primeiro conteúdo; o catálogo já possui o tipo `ArcaneElement` para futuros elementos, como raio.
 
@@ -90,13 +95,13 @@ Declarações e `cast()` não ocupam pontos adicionais. O corpo do loop conta um
 
 ## Progressão e conteúdo
 
-O protótipo contém oito salas por tentativa: entrada, quatro combates, recompensa, descanso e chefe. Modelos de salas são montados em um mapa conectado e ramificado, com semente reproduzível. Salas limpas não repovoam.
+O protótipo contém nove salas por tentativa: entrada, quatro combates, loja, baú, descanso e chefe. Modelos de salas são montados em um mapa conectado e ramificado, com semente reproduzível. Salas limpas não repovoam.
 
 Recompensas temporárias incluem dano, vida, movimento, energia, complexidade e magia de área. A base vende vida, energia, complexidade inicial e desbloqueio permanente das magias de área. As construções da linguagem estão todas liberadas desde o início.
 
-Morte, vitória e encerramento pelo menu depositam os fragmentos uma única vez. Vitória também concede 30 fragmentos extras. Ao iniciar outra tentativa, níveis e melhorias temporárias reiniciam. O código editado na base define o próximo loadout inicial; código e rascunhos feitos durante uma tentativa não concedem funções que o equipamento atual não possui.
+Morte e encerramento pelo menu depositam os fragmentos uma única vez. Ao iniciar outra tentativa, níveis, itens e melhorias temporárias reiniciam. O programa aplicado e o rascunho permanecem no personagem, inclusive quando editados durante uma run. O código não concede funções ausentes da pool atual. Se o programa foi alterado durante a run, ao terminar é possível guardar uma cópia nomeada na Biblioteca; continuar sem guardar essa cópia preserva o programa atual.
 
-O save é `profile.json` em `Application.persistentDataPath` — normalmente, no Linux, `~/.config/unity3d/ArcaneWorkshop/Arcane Code/`. Há gravação por arquivo temporário, backup da versão anterior e preservação de arquivo inválido. A versão 2 do perfil migra automaticamente o código das antigas classes de fogo/gelo para `MagoArcanista`. A variável `ARCANE_PROFILE_DIR` permite usar outro diretório, especialmente em testes. Não há retomada de uma tentativa depois de fechar o jogo.
+O save é `profile.json` em `Application.persistentDataPath` — normalmente, no Linux, `~/.config/unity3d/ArcaneWorkshop/Arcane Code/`. Há gravação por arquivo temporário, backup da versão anterior e preservação de arquivo inválido. A versão 6 mantém código e rascunho por `ClassId`, separados do inventário, e salva a escolha de grimório inicial em `MageStartingGrimoireId`. Perfis anteriores recebem Bola de Fogo como escolha inicial, preservando programas, biblioteca e preferências já migrados. Os campos antigos permanecem como dados legados. A variável `ARCANE_PROFILE_DIR` permite usar outro diretório, especialmente em testes. Não há retomada de uma tentativa depois de fechar o jogo.
 
 ## Desenvolvimento e testes
 

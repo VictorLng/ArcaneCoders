@@ -1,5 +1,5 @@
-{
-  "version": 1,
-  "allowLegacyEdits": false,
-  "allowedPaths": []
+ {
+    "version": 1,
+    "allowLegacyEdits": true,
+    "allowedPaths": []
 }

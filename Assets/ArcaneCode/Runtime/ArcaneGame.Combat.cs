@@ -14,25 +14,41 @@ namespace ArcaneCode
             public Vector2 Position;
             public EnemyDefinition Definition;
             public float HP, MaxHP, Cooldown, Slow, Freeze, Burn, BurnTick, Warning;
+            public Color BaseColor;
             public bool Archer, Boss;
             public Vector2 Aim;
             public SpriteRenderer Telegraph;
         }
+        enum EnemyKind { Skeleton, Bat, Goblin, Rat, MiniMage, Spider, DarkKnight, HeadlessKnight, BasiliskFrog }
+        sealed class EnemyTemplate
+        {
+            public EnemyDefinition Definition;
+            public string SpriteId;
+            public Color Color;
+            public bool Ranged;
+        }
         sealed class Shot
         {
             public Transform View;
+            public WorldPropArt Art;
             public Vector2 Position, Velocity;
             public SpellDefinition Spell;
             public float Damage, Life = 4, Radius;
             public bool Hostile;
             public int Energy, Ricochets;
         }
-        sealed class Orb { public Transform View; public Vector2 Position; public int Amount; }
-        sealed class Effect { public Transform View; public SpriteRenderer Renderer; public float Life, Duration, Radius; public Color Color; }
+        sealed class Orb { public Transform View; public WorldPropArt Art; public Vector2 Position; public int Experience, Coins; }
+        sealed class ItemPickup { public Transform View; public WorldPropArt Art; public Vector2 Position; public RunItemInstance Item; }
+        sealed class Chest { public Transform View; public Vector2 Position; }
+        sealed class ShopOffer { public Transform View; public WorldPropArt Art; public Vector2 Position; public RunItemInstance Item; public Reward Reward; public int Price; public bool Sold; }
+        sealed class Effect { public Transform View; public WorldPropArt Art; public float Life, Duration, Radius; }
         sealed class Door { public int Target; public Vector2 Direction; public SpriteRenderer Symbol; }
         readonly List<Enemy> enemies = new List<Enemy>();
         readonly List<Shot> shots = new List<Shot>();
         readonly List<Orb> orbs = new List<Orb>();
+        readonly List<ItemPickup> itemPickups = new List<ItemPickup>();
+        readonly List<ShopOffer> shopOffers = new List<ShopOffer>();
+        Chest chest;
         readonly List<Effect> effects = new List<Effect>();
         readonly List<Door> doors = new List<Door>();
         readonly int[,] flow = new int[33,17];
@@ -44,7 +60,7 @@ namespace ArcaneCode
         {
             if (roomRoot != null) Destroy(roomRoot.gameObject);
             roomRoot = new GameObject("Sala").transform;
-            enemies.Clear(); shots.Clear(); orbs.Clear(); effects.Clear(); obstacles.Clear(); doors.Clear();
+            enemies.Clear(); shots.Clear(); orbs.Clear(); itemPickups.Clear(); chest=null; effects.Clear(); obstacles.Clear(); doors.Clear();
             for (int x = -9; x < 9; x++) for (int y = -5; y < 5; y++)
                 WorldArt.Draw(roomRoot,"floor",new Vector2(x+.5f,y+.5f),Vector2.one, ((x+y)&1)==0 ? Color.white : new Color(.9f,.91f,.96f),-1000);
             Color wall = new Color(.22f,.26f,.36f);
@@ -90,11 +106,13 @@ namespace ArcaneCode
             }
             if (!CurrentRoom.Cleared)
             {
-                if (CurrentRoom.Kind == RoomKind.Boss) SpawnEnemy(new Vector2(0,2),false,true);
+                if (CurrentRoom.Kind == RoomKind.Boss) SpawnEnemy(new Vector2(0,2),SuperBossTemplate(),true);
                 else
                 {
-                    int roomDistance=dungeon.Distances()[index];
-                    int count = 5 + Mathf.Min(3,roomDistance);
+                    int floor=CurrentRoom.Floor;
+                    EnemyTemplate[] roster=EnemyRoster(floor);
+                    int count = 5 + Mathf.Min(3,floor);
+                    int rosterOffset=random.Next(roster.Length);
                     for (int i = 0; i < count; i++)
                     {
                         Vector2 position = Vector2.zero;
@@ -103,28 +121,130 @@ namespace ArcaneCode
                             position = new Vector2((float)random.NextDouble()*13-6.5f,(float)random.NextDouble()*6-3);
                             if (Walkable(position,.45f) && Vector2.Distance(position,entry)>3 && SpawnPositionIsFree(position)) break;
                         }
-                        SpawnEnemy(position,i%3==2,false,roomDistance);
+                        SpawnEnemy(position,roster[(i+rosterOffset)%roster.Length],false);
                     }
                 }
             }
             RefreshDoors();
             if (CurrentRoom.Kind == RoomKind.Rest && !CurrentRoom.Claimed)
             { CurrentRoom.Claimed = true; hp = Mathf.Min(MaxHealth,hp+MaxHealth*.4f); Notify("Santuário · 40% da vida máxima recuperada."); }
-            if (CurrentRoom.Kind == RoomKind.Reward && !CurrentRoom.Claimed)
-            { CurrentRoom.Claimed = true; ShowRewards(false); }
-            RestoreExperience();
+            if (CurrentRoom.Kind == RoomKind.Shop)
+            {
+                Tutorial("shop","A loja é uma sala física: aproxime-se de uma oferta e aperte E para comprar. Cartas custam moedas e aplicam uma melhoria aleatória.");
+                SpawnShopOffers();
+            }
+            RestorePickups();
+            if (CurrentRoom.Kind == RoomKind.Treasure && !CurrentRoom.ChestOpened) SpawnChest();
         }
 
-        void RestoreExperience()
+        void RestorePickups()
         {
-            if (CurrentRoom.UncollectedExperience <= 0) return;
-            SpawnExperienceOrb(Vector2.zero, CurrentRoom.UncollectedExperience);
+            if (CurrentRoom.UncollectedExperience > 0) SpawnExperienceOrb(Vector2.zero, CurrentRoom.UncollectedExperience);
+            if (CurrentRoom.UncollectedCoins > 0) SpawnCoinOrb(new Vector2(.5f,0), CurrentRoom.UncollectedCoins);
+            foreach (RunItemInstance item in CurrentRoom.UncollectedItems) SpawnItemPickup(item, new Vector2(0,-.35f));
+        }
+        void SpawnChest()
+        {
+            Vector2 at=Vector2.zero;
+            chest=new Chest { Position=at,View=WorldProps.Chest(roomRoot,at).transform };
+        }
+        void SpawnItemPickup(RunItemInstance item, Vector2 position)
+        {
+            if (!RunItemCatalog.TryGet(item.DefinitionId,out RunItemDefinition definition)) return;
+            var pickup=new ItemPickup { Item=item,Position=position };
+            pickup.Art=WorldProps.Item(roomRoot,position,definition.Kind,item.DefinitionId.Contains("ice") || item.DefinitionId.Contains("frost"));
+            pickup.View=pickup.Art.transform;
+            itemPickups.Add(pickup);
+        }
+        RunItemInstance CreateChestDrop()
+        {
+            var pool=new List<RunItemDefinition>();
+            pool.AddRange(RunItemCatalog.OfKind(RunItemKind.Ring));
+            pool.AddRange(RunItemCatalog.OfKind(RunItemKind.Staff));
+            pool.AddRange(RunItemCatalog.OfKind(RunItemKind.Grimoire));
+            RunItemDefinition definition=pool[random.Next(pool.Count)];
+            int max=Mathf.Clamp(CurrentRoom.Floor,1,definition.MaxLevel);
+            return new RunItemInstance { DefinitionId=definition.Id,Level=random.Next(1,max+1) };
+        }
+        void SpawnShopOffers()
+        {
+            if (!CurrentRoom.Claimed)
+            {
+                CurrentRoom.Claimed=true; shopOffers.Clear();
+                RunItemInstance first=CreateChestDrop(), second=CreateChestDrop();
+                List<Reward> cards=RewardPool(); Reward card=cards[random.Next(cards.Count)];
+                shopOffers.Add(new ShopOffer { Position=new Vector2(-3,1),Item=first,Price=10+first.Level*6 });
+                shopOffers.Add(new ShopOffer { Position=new Vector2(0,1),Item=second,Price=10+second.Level*6 });
+                shopOffers.Add(new ShopOffer { Position=new Vector2(3,1),Reward=card,Price=ShopPrice(card) });
+            }
+            foreach (ShopOffer offer in shopOffers) if (!offer.Sold) SpawnShopOffer(offer);
+            Notify("Loja arcana · interaja com uma oferta para comprar.");
+        }
+        void SpawnShopOffer(ShopOffer offer)
+        {
+            if (offer.Reward!=null) offer.Art=WorldProps.Card(roomRoot,offer.Position);
+            else if (offer.Item!=null && RunItemCatalog.TryGet(offer.Item.DefinitionId,out RunItemDefinition definition))
+                offer.Art=WorldProps.Item(roomRoot,offer.Position,definition.Kind,offer.Item.DefinitionId.Contains("ice") || offer.Item.DefinitionId.Contains("frost"));
+            else return;
+            offer.View=offer.Art.transform;
+        }
+        bool TryBuyShopOffer()
+        {
+            ShopOffer closest=null; float distance=.9f;
+            foreach (ShopOffer offer in shopOffers)
+            {
+                if (offer.Sold || offer.View == null) continue;
+                float candidate=Vector2.Distance(playerPosition,offer.Position); if (candidate<distance) { distance=candidate; closest=offer; }
+            }
+            if (closest == null) return false;
+            if (runCoins<closest.Price) { Notify("São necessárias "+closest.Price+" moedas."); return true; }
+            runCoins-=closest.Price; closest.Sold=true;
+            if (closest.Item != null)
+            {
+                inventory.Add(closest.Item);
+                if (RunItemCatalog.TryGet(closest.Item.DefinitionId,out RunItemDefinition definition)) Notify(definition.Label+" comprado.");
+            }
+            else { ApplyReward(closest.Reward); Notify("Carta: "+closest.Reward.Title); }
+            Destroy(closest.View.gameObject); return true;
+        }
+        bool TryInteract()
+        {
+            if (chest != null && Vector2.Distance(playerPosition,chest.Position) < 1.05f)
+            {
+                Tutorial("chest","Chegue perto do baú e aperte E para abri-lo; depois, aperte E perto do item para guardá-lo na mochila.");
+                CurrentRoom.ChestOpened=true; Destroy(chest.View.gameObject); chest=null;
+                RunItemInstance item=CreateChestDrop(); CurrentRoom.UncollectedItems.Add(item); SpawnItemPickup(item,new Vector2(0,.55f));
+                Notify("Baú aberto · interaja com o item para guardá-lo."); return true;
+            }
+            ItemPickup closest=null; float distance=.85f;
+            foreach (ItemPickup pickup in itemPickups)
+            { float candidate=Vector2.Distance(playerPosition,pickup.Position); if (candidate<distance) { distance=candidate; closest=pickup; } }
+            if (closest == null || !inventory.Add(closest.Item)) return false;
+            CurrentRoom.UncollectedItems.RemoveAll(item=>item.InstanceId==closest.Item.InstanceId);
+            if (RunItemCatalog.TryGet(closest.Item.DefinitionId,out RunItemDefinition definition)) Notify(definition.Label+" nível "+closest.Item.Level+" guardado.");
+            Destroy(closest.View.gameObject); itemPickups.Remove(closest); return true;
+        }
+        void AbsorbRoomResources()
+        {
+            int experience=CurrentRoom.UncollectedExperience, coins=CurrentRoom.UncollectedCoins;
+            CurrentRoom.UncollectedExperience=0; CurrentRoom.UncollectedCoins=0;
+            if (experience>0) GainXP(experience);
+            if (coins>0) runCoins+=coins;
+            foreach (Orb orb in orbs) if (orb.View!=null) Destroy(orb.View.gameObject);
+            orbs.Clear();
+            if (experience>0 || coins>0) Notify("Sala limpa · +"+experience+" XP · +"+coins+" moedas");
         }
 
         void SpawnExperienceOrb(Vector2 position, int amount)
         {
-            var orb = new Orb { Position = position, Amount = amount };
-            orb.View = WorldArt.Draw(roomRoot,"diamond",orb.Position,Vector2.one*.23f,new Color(.45f,1,.84f),10,false).transform;
+            var orb = new Orb { Position = position, Experience = amount };
+            orb.Art=WorldProps.Resource(roomRoot,position,false); orb.View=orb.Art.transform;
+            orbs.Add(orb);
+        }
+        void SpawnCoinOrb(Vector2 position, int amount)
+        {
+            var orb = new Orb { Position = position, Coins = amount };
+            orb.Art=WorldProps.Resource(roomRoot,position,true); orb.View=orb.Art.transform;
             orbs.Add(orb);
         }
         void RefreshDoors()
@@ -201,12 +321,46 @@ namespace ArcaneCode
             }
             return (CellPosition(best)-enemy.Position).normalized;
         }
-        void SpawnEnemy(Vector2 position, bool archer, bool boss, int roomDistance = 0)
+        EnemyTemplate[] EnemyRoster(int floor)
         {
-            EnemyDefinition definition = boss?config.Boss:archer?config.Archer:config.Melee;
-            float scale = boss?1:1+.08f*Mathf.Max(0,roomDistance-1);
-            var enemy = new Enemy { Position=position,Definition=definition,HP=definition.Health*scale,MaxHP=definition.Health*scale,Archer=archer,Boss=boss,Cooldown=1+(float)random.NextDouble() };
-            enemy.Art=WorldArt.Actor(roomRoot,boss?"boss":archer?"archer":"skeleton",position,Color.white,boss?2:1.1f); enemy.View=enemy.Art.transform; enemies.Add(enemy);
+            bool undead = floor == 1 ? dungeon.UndeadFirst : !dungeon.UndeadFirst;
+            if (floor == 1 || floor == 2) return undead
+                ? new[] { Template(EnemyKind.Skeleton), Template(EnemyKind.Bat) }
+                : new[] { Template(EnemyKind.Goblin), Template(EnemyKind.Rat) };
+            if (floor == 3) return new[] { Template(EnemyKind.MiniMage), Template(EnemyKind.Spider) };
+            return new[] { Template(EnemyKind.DarkKnight), Template(EnemyKind.HeadlessKnight), Template(EnemyKind.BasiliskFrog) };
+        }
+        EnemyTemplate Template(EnemyKind kind)
+        {
+            switch (kind)
+            {
+                case EnemyKind.Bat: return new EnemyTemplate { Definition=config.Bat, SpriteId="bat", Color=new Color(.42f,.34f,.58f) };
+                case EnemyKind.Goblin: return new EnemyTemplate { Definition=config.Goblin, SpriteId="goblin", Color=new Color(.38f,.72f,.34f) };
+                case EnemyKind.Rat: return new EnemyTemplate { Definition=config.Rat, SpriteId="rat", Color=new Color(.54f,.48f,.42f) };
+                case EnemyKind.MiniMage: return new EnemyTemplate { Definition=config.MiniMage, SpriteId="mini-mage", Color=new Color(.68f,.42f,.92f), Ranged=true };
+                case EnemyKind.Spider: return new EnemyTemplate { Definition=config.Spider, SpriteId="spider", Color=new Color(.22f,.18f,.29f) };
+                case EnemyKind.DarkKnight: return new EnemyTemplate { Definition=config.DarkKnight, SpriteId="black-knight", Color=new Color(.25f,.29f,.36f) };
+                case EnemyKind.HeadlessKnight: return new EnemyTemplate { Definition=config.HeadlessKnight, SpriteId="flame-headless-knight", Color=new Color(1,.36f,.16f) };
+                case EnemyKind.BasiliskFrog: return new EnemyTemplate { Definition=config.BasiliskFrog, SpriteId="basilisk-frog", Color=new Color(.62f,.78f,.18f), Ranged=true };
+                default: return new EnemyTemplate { Definition=config.Melee, SpriteId="skeleton", Color=Color.white };
+            }
+        }
+        EnemyTemplate SuperBossTemplate()
+        {
+            EnemyDefinition baseDefinition=config.DarkKnight;
+            return new EnemyTemplate
+            {
+                Definition=new EnemyDefinition { Label="Cavaleiro Negro Supremo", Health=baseDefinition.Health*4.5f, Speed=baseDefinition.Speed*.82f, Damage=baseDefinition.Damage*1.45f, AttackInterval=baseDefinition.AttackInterval*.78f, Experience=baseDefinition.Experience*5, Coins=baseDefinition.Coins*2 },
+                SpriteId="black-knight", Color=new Color(.9f,.18f,.24f)
+            };
+        }
+        void SpawnEnemy(Vector2 position, EnemyTemplate template, bool boss)
+        {
+            EnemyDefinition definition=template.Definition;
+            bool hasSprite=EnemySprites.Available(template.SpriteId);
+            Color color=hasSprite ? Color.white : template.Color;
+            var enemy = new Enemy { Position=position,Definition=definition,HP=definition.Health,MaxHP=definition.Health,BaseColor=color,Archer=template.Ranged,Boss=boss,Cooldown=1+(float)random.NextDouble() };
+            enemy.Art=WorldArt.Actor(roomRoot,boss?"boss":"skeleton",position,color,boss?2:1.1f,hasSprite ? direction=>EnemySprites.Facing(template.SpriteId,direction) : null); enemy.View=enemy.Art.transform; enemies.Add(enemy);
         }
         Enemy FindTarget()
         {
@@ -219,11 +373,15 @@ namespace ArcaneCode
         public bool Cast(string spellId, float speedMultiplier)
         {
             float speed=Mathf.Max(1,speedMultiplier);
-            if (mode!=ScreenMode.Run || elapsed-lastCast<config.SpellInterval/speed || !unlocked.Contains(spellId)) return false;
+            if ((mode!=ScreenMode.Run && mode!=ScreenMode.Inventory) || elapsed-lastCast<config.SpellInterval/speed || playerArt.Casting || !unlocked.Contains(spellId)) return false;
             SpellDefinition definition=SpellFor(spellId); Enemy target=FindTarget();
             if (definition==null || target==null) return false;
             int charged=Mathf.Max(1,energy); float damage=definition.Damage*(1+damageBonus)*(1+charged*.25f)*loadout.DamageMultiplierFor(spellId);
             energy=0; lastCast=elapsed;
+            Vector2 direction=(target.Position-playerPosition).normalized;
+            Vector2 castOrigin=playerPosition+direction*.52f;
+            playerArt.Cast(direction);
+            Burst(castOrigin,.32f,definition.Color,.14f);
             if (definition.Area)
             {
                 Burst(playerPosition,definition.Radius,definition.Color,.45f);
@@ -235,9 +393,9 @@ namespace ArcaneCode
             }
             else
             {
-                Vector2 direction=(target.Position-playerPosition).normalized;
-                var shot=new Shot { Position=playerPosition,Velocity=direction*definition.Speed,Spell=definition,Damage=damage,Radius=definition.Radius,Energy=charged,Ricochets=loadout.RicochetCount };
-                shot.View=WorldArt.Draw(roomRoot,definition.Ice?"diamond":"disc",shot.Position,Vector2.one*(definition.Radius*2+.05f*charged),definition.Color,350,false).transform; shots.Add(shot);
+                var shot=new Shot { Position=castOrigin,Velocity=direction*definition.Speed,Spell=definition,Damage=damage,Radius=definition.Radius,Energy=charged,Ricochets=inventory.RicochetCount };
+                shot.Art=WorldProps.Projectile(roomRoot,shot.Position,definition.Radius*2+.05f*charged,definition.Color,definition.Ice,direction);
+                shot.View=shot.Art.transform; shots.Add(shot);
             }
             return true;
         }
@@ -277,25 +435,31 @@ namespace ArcaneCode
         }
         void Kill(Enemy enemy)
         {
+            Tutorial("first-kill","DICA DE CÓDIGO · `this.inimigos` informa quantos inimigos ainda restam na sala. Consulte esse valor no seu código para adaptar sua estratégia durante a luta.");
             enemies.Remove(enemy); Destroy(enemy.View.gameObject); if (enemy.Telegraph!=null) Destroy(enemy.Telegraph.gameObject);
-            runCoins+=enemy.Definition.Coins;
             CurrentRoom.UncollectedExperience += enemy.Definition.Experience;
+            int coinDrop = enemy.Boss ? 10 : enemy.Definition.Coins;
+            CurrentRoom.UncollectedCoins += coinDrop;
             SpawnExperienceOrb(enemy.Position, enemy.Definition.Experience);
+            SpawnCoinOrb(enemy.Position+new Vector2(.2f,0), coinDrop);
         }
         void DamagePlayer(float damage)
         { if (invincible>0 || hp<=0) return; hp=Mathf.Max(0,hp-damage); invincible=config.Invulnerability; Burst(playerPosition,.65f,new Color(1,.27f,.35f),.25f); }
         void Burst(Vector2 at,float radius,Color color,float duration)
         {
-            SpriteRenderer renderer=WorldArt.Draw(roomRoot,"ring",at,Vector2.one*.1f,color,340,false);
-            effects.Add(new Effect { View=renderer.transform,Renderer=renderer,Life=duration,Duration=duration,Radius=radius,Color=color });
+            WorldPropArt art=WorldProps.Burst(roomRoot,at,color); art.transform.localScale=Vector3.one*.1f;
+            effects.Add(new Effect { View=art.transform,Art=art,Life=duration,Duration=duration,Radius=radius });
         }
         void EnemyShot(Vector2 from,Vector2 direction,float damage,float speed=4.5f)
         {
             var shot=new Shot { Position=from,Velocity=direction.normalized*speed,Damage=damage,Radius=.16f,Hostile=true };
-            shot.View=WorldArt.Draw(roomRoot,"diamond",from,Vector2.one*.3f,new Color(1,.34f,.48f),350,false).transform; shots.Add(shot);
+            shot.Art=WorldProps.Projectile(roomRoot,from,.3f,new Color(1,.34f,.48f),true,direction);
+            shot.View=shot.Art.transform; shots.Add(shot);
         }
         void UpdateCombat(float dt)
         {
+            foreach (ItemPickup pickup in itemPickups) if (pickup.Art!=null) pickup.Art.Animate(dt);
+            foreach (ShopOffer offer in shopOffers) if (!offer.Sold && offer.Art!=null) offer.Art.Animate(dt);
             flowTimer-=dt; if (flowTimer<=0) { RebuildFlow(); flowTimer=.25f; }
             for (int enemyIndex=enemies.Count-1;enemyIndex>=0;enemyIndex--)
             {
@@ -307,7 +471,7 @@ namespace ArcaneCode
                     if (enemy.BurnTick<=0) { enemy.BurnTick=.5f; enemy.HP-=3; if (enemy.HP<=0) { Kill(enemy); continue; } }
                 }
                 SpriteRenderer body=enemy.Art.Body;
-                body.color=enemy.Freeze>0?new Color(.45f,.85f,1):enemy.Slow>0?new Color(.7f,.9f,1):enemy.Burn>0?new Color(1,.7f,.45f):Color.white;
+                body.color=enemy.Freeze>0?new Color(.45f,.85f,1):enemy.Slow>0?new Color(.7f,.9f,1):enemy.Burn>0?new Color(1,.7f,.45f):enemy.BaseColor;
                 if (enemy.Freeze>0) continue;
                 enemy.Cooldown-=dt;
                 float distance=Vector2.Distance(enemy.Position,playerPosition);
@@ -363,25 +527,35 @@ namespace ArcaneCode
                         if (Vector2.Distance(shot.Position,enemy.Position)<shot.Radius+(enemy.Boss?.65f:.32f)) { Hit(enemy,shot.Damage,shot.Spell,shot.Energy); hit=!RedirectRicochet(shot,enemy); break; }
                     }
                 }
-                if (hit || shot.Life<=0) { Destroy(shot.View.gameObject); shots.RemoveAt(i); } else shot.View.position=shot.Position;
+                if (hit || shot.Life<=0) { Destroy(shot.View.gameObject); shots.RemoveAt(i); }
+                else { shot.View.position=shot.Position; shot.Art.Aim(shot.Velocity); shot.Art.Animate(dt); shot.Art.SetOrder(350); }
             }
             for (int i=orbs.Count-1;i>=0;i--)
             {
                 Orb orb=orbs[i]; float distance=Vector2.Distance(orb.Position,playerPosition);
                 if (distance<2.2f) orb.Position=Vector2.MoveTowards(orb.Position,playerPosition,7*dt);
-                orb.View.position=orb.Position; orb.View.Rotate(0,0,80*dt);
+                orb.View.position=orb.Position; orb.Art.Animate(dt);
                 if (distance<.4f)
                 {
-                    CurrentRoom.UncollectedExperience = Mathf.Max(0, CurrentRoom.UncollectedExperience-orb.Amount);
-                    GainXP(orb.Amount); Destroy(orb.View.gameObject); orbs.RemoveAt(i);
+                    if (orb.Experience > 0)
+                    {
+                        CurrentRoom.UncollectedExperience = Mathf.Max(0, CurrentRoom.UncollectedExperience-orb.Experience);
+                        GainXP(orb.Experience);
+                    }
+                    if (orb.Coins > 0)
+                    {
+                        CurrentRoom.UncollectedCoins = Mathf.Max(0, CurrentRoom.UncollectedCoins-orb.Coins);
+                        runCoins += orb.Coins;
+                    }
+                    Destroy(orb.View.gameObject); orbs.RemoveAt(i);
                 }
             }
             for (int i=effects.Count-1;i>=0;i--)
             {
                 Effect effect=effects[i]; effect.Life-=dt;
                 if (effect.Life<=0) { Destroy(effect.View.gameObject); effects.RemoveAt(i); continue; }
-                float progress=1-effect.Life/effect.Duration; effect.View.localScale=Vector2.one*(effect.Radius*2*progress);
-                Color color=effect.Color; color.a=1-progress; effect.Renderer.color=color;
+                float progress=1-effect.Life/effect.Duration; effect.View.localScale=Vector3.one*(effect.Radius*2*progress);
+                effect.Art.SetOpacity(1-progress);
             }
         }
         void ClearProjectiles() { foreach (var shot in shots) if (shot.View!=null) Destroy(shot.View.gameObject); shots.Clear(); }

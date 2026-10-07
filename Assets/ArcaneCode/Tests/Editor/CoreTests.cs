@@ -161,8 +161,11 @@ namespace ArcaneCode.Tests
                 Assert.That(dungeon.Rooms.Any(r=>r.Neighbors.Count>=3),Is.True);
                 Assert.That(dungeon.Rooms.Count(r=>r.Kind==RoomKind.Combat),Is.EqualTo(4));
                 Assert.That(dungeon.Rooms.Count(r=>r.Kind==RoomKind.Rest),Is.EqualTo(1));
-                Assert.That(dungeon.Rooms.Count(r=>r.Kind==RoomKind.Reward),Is.EqualTo(1));
+                Assert.That(dungeon.Rooms.Count(r=>r.Kind==RoomKind.Shop),Is.EqualTo(1));
+                Assert.That(dungeon.Rooms.Count(r=>r.Kind==RoomKind.Treasure),Is.EqualTo(1));
                 int boss=dungeon.Rooms.FindIndex(r=>r.Kind==RoomKind.Boss);
+                Assert.That(dungeon.Rooms[boss].Floor,Is.EqualTo(5));
+                Assert.That(dungeon.Rooms.Where(r=>r.Kind==RoomKind.Combat).Select(r=>r.Floor).OrderBy(f=>f),Is.EqualTo(new[] {1,2,3,4}));
                 Assert.That(distances[boss],Is.EqualTo(distances.Max())); Assert.That(dungeon.Rooms[boss].Neighbors.Count,Is.EqualTo(1));
                 foreach (Room room in dungeon.Rooms) foreach (int n in room.Neighbors) Assert.That(dungeon.Rooms[n].Neighbors.Contains(dungeon.Rooms.IndexOf(room)),Is.True);
                 var again=Dungeon.Generate(seed); Assert.That(again.Rooms.Select(r=>$"{r.X},{r.Y},{r.Kind},{r.Template}"),Is.EqualTo(dungeon.Rooms.Select(r=>$"{r.X},{r.Y},{r.Kind},{r.Template}")));
